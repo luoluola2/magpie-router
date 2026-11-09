@@ -13,6 +13,6 @@
 
 供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。 固定订阅与按量现金成本见 `cost-model.md`。 路由调度总表见 `routing-overview.md`，每次套餐、模型、候选或路由变更同步维护。
 
-当前期望路由见 `routing.json`。它是私人使用的过渡规范，应用前用 `python -m magpie_router route diff` 查看差异。
+当前期望路由见 `routing.json`，版本为 v2。应用前用 `python -m magpie_router route diff` 查看差异；`group/sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
 
 统一兜底是 `group/fallback`：只能包含具体模型，各二级任务组末位引用，Work 不直连。先应用兜底组再应用任务组；配置和成本说明见 `routing-overview.md`。

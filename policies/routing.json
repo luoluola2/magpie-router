@@ -1,8 +1,9 @@
 {
-  "version": "v1",
+  "version": "v2",
   "groups": [
     {
       "id": "group/fallback",
+      "name": "Fallback",
       "routing": "order",
       "stays": "turn",
       "members": [
@@ -14,6 +15,32 @@
         "opencode-go/qwen3.8-flash",
         "codex/gpt-6-luna",
         "grok/grok-4.7@500k"
+      ],
+      "rules": [
+        {
+          "use": "workbuddy/hy4free,opencode-go/qwen3.8-flash",
+          "when": {"images": true, "tokens": "500k"}
+        },
+        {
+          "use": "workbuddy/hy4free,openrouter/google/gemma-4-26b-a4b-it:free,opencode-go/qwen3.8-flash,codex/gpt-6-luna,grok/grok-4.7@500k",
+          "when": {"images": true}
+        },
+        {
+          "use": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free,openrouter/nvidia/nemotron-3.5-lightning:free,opencode-go/qwen3.8-flash",
+          "when": {"tokens": "850k"}
+        }
+      ]
+    },
+    {
+      "id": "group/classify",
+      "name": "Classify",
+      "routing": "order",
+      "stays": "turn",
+      "members": [
+        "workbuddy/deepseek-v4.1-flash:none",
+        "opencode-go/claude-haiku-5-5:low",
+        "codex/gpt-6-luna:low",
+        "group/fallback"
       ]
     },
     {
@@ -21,11 +48,33 @@
       "routing": "order",
       "stays": "session",
       "members": [
-        "opencode-go/kimi-k3.1-pro",
-        "app-yylx-io-10275/claude-opus-5-5",
         "codex/gpt-6.1-sol",
+        "opencode-go/kimi-k3.1-pro",
         "grok/grok-4.7@500k",
         "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/kimi-k3.1-pro", "when": {"tokens": "400k"}},
+        {"use": "codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"images": true}}
+      ]
+    },
+    {
+      "id": "group/implement",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "codex/gpt-6.1-terra",
+        "codex/gpt-6.1-sol",
+        "opencode-go/kimi-k3.1-pro",
+        "opencode-go/glm-5.3-flash",
+        "grok/grok-4.7@500k",
+        "workbuddy/hy4free",
+        "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/kimi-k3.1-pro,opencode-go/glm-5.3-flash", "when": {"tokens": "400k"}},
+        {"use": "codex/gpt-6.1-terra,codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"images": true}},
+        {"use": "codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"effort": "xhigh"}}
       ]
     },
     {
@@ -35,9 +84,12 @@
       "members": [
         "codex/gpt-6.1-sol",
         "opencode-go/kimi-k3.1-pro",
-        "app-yylx-io-10275/claude-opus-5-5",
         "grok/grok-4.7@500k",
         "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/kimi-k3.1-pro", "when": {"tokens": "400k"}},
+        {"use": "codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"images": true}}
       ]
     },
     {
@@ -45,23 +97,48 @@
       "routing": "order",
       "stays": "session",
       "members": [
-        "workbuddy/deepseek-v4.1-flash",
-        "opencode-go/deepseek-v4.1-flash",
-        "opencode-go/claude-haiku-5-5",
-        "grok/grok-4.7",
+        "workbuddy/deepseek-v4.1-flash:low",
+        "opencode-go/glm-5.3-flash:high",
+        "opencode-go/claude-haiku-5-5:low",
+        "opencode-go/qwen3.8-flash:low",
         "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/qwen3.8-flash:low,opencode-go/claude-haiku-5-5:low", "when": {"images": true}},
+        {"use": "opencode-go/glm-5.3-flash:high", "when": {"effort": "xhigh"}}
       ]
     },
     {
-      "id": "group/long",
+      "id": "group/vision",
+      "name": "Vision",
       "routing": "order",
-      "stays": "session",
+      "stays": "turn",
       "members": [
+        "codex/gpt-6.1-terra",
         "opencode-go/kimi-k3.1-pro",
+        "opencode-go/qwen3.8-flash",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
         "workbuddy/hy4free",
-        "workbuddy/deepseek-v4.1-flash",
-        "app-yylx-io-10275/claude-opus-5-5",
         "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/kimi-k3.1-pro,opencode-go/qwen3.8-flash", "when": {"tokens": "400k"}}
+      ]
+    },
+    {
+      "id": "group/light",
+      "routing": "order",
+      "stays": "turn",
+      "members": [
+        "workbuddy/hy4free",
+        "opencode-go/qwen3.8-flash:low",
+        "opencode-go/glm-5.3-flash:low",
+        "opencode-go/claude-haiku-5-5:low",
+        "codex/gpt-6-luna:low",
+        "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/qwen3.8-flash:low,opencode-go/glm-5.3-flash:low", "when": {"tokens": "200k"}}
       ]
     },
     {
@@ -71,94 +148,60 @@
       "members": [
         "workbuddy/deepseek-v4.1-flash:low",
         "opencode-go/deepseek-v4.1-flash:low",
+        "opencode-go/qwen3.8-flash:low",
         "opencode-go/claude-haiku-5-5:low",
-        "deepseek/deepseek-flash:none",
         "group/fallback"
       ]
     },
     {
-      "id": "group/implement",
+      "id": "group/long",
       "routing": "order",
       "stays": "session",
       "members": [
-        "workbuddy/hy4free",
         "opencode-go/kimi-k3.1-pro",
-        "codex/gpt-6.1-terra",
-        "codex/gpt-6.1-sol",
-        "grok/grok-4.7@500k",
+        "opencode-go/qwen3.8-flash",
+        "workbuddy/deepseek-v4.1-flash",
+        "workbuddy/hy4free",
         "group/fallback"
+      ],
+      "rules": [
+        {"use": "opencode-go/kimi-k3.1-pro,opencode-go/qwen3.8-flash,workbuddy/deepseek-v4.1-flash", "when": {"images": true, "tokens": "850k"}}
       ]
     },
     {
-      "id": "group/light",
+      "id": "group/sota",
+      "name": "SOTA",
       "routing": "order",
-      "stays": "session",
+      "stays": "turn",
       "members": [
-        "workbuddy/hy4free",
-        "workbuddy/deepseek-v4.1-flash:low",
-        "opencode-go/deepseek-v4.1-flash:low",
-        "opencode-go/claude-haiku-5-5:low",
-        "deepseek/deepseek-flash:low",
-        "group/fallback"
+        "codex/gpt-6-astra",
+        "app-yylx-io-10275/claude-opus-5-5"
       ]
     },
     {
       "id": "group/work",
       "routing": "order",
       "stays": "turn",
-      "classifier": "group/light",
+      "classifier": "group/classify",
       "members": [
         "group/light",
         "group/implement",
         "group/architect",
         "group/review",
         "group/tests",
+        "group/vision",
         "group/compact",
         "group/long"
       ],
       "rules": [
-        {
-          "use": "group/compact",
-          "when": {
-            "compact": true
-          }
-        },
-        {
-          "use": "group/long",
-          "when": {
-            "tokens": "500k"
-          }
-        },
-        {
-          "use": "group/architect",
-          "when": {
-            "images": true
-          }
-        },
-        {
-          "use": "group/architect",
-          "when": {
-            "intent": "架构设计、跨模块重构或技术方案，而不是直接修改代码"
-          }
-        },
-        {
-          "use": "group/review",
-          "when": {
-            "intent": "评审已有方案、架构、代码改动、PR 或迁移计划并找出问题，而不是实现修改"
-          }
-        },
-        {
-          "use": "group/tests",
-          "when": {
-            "intent": "以测试框架、测试配置或批量测试修复为主要任务，且不包含主要业务实现"
-          }
-        },
-        {
-          "use": "group/implement",
-          "when": {
-            "intent": "实现功能或修复缺陷，包括为此编写必要的测试"
-          }
-        }
+        {"use": "group/compact", "when": {"compact": true}},
+        {"use": "group/review", "when": {"intent": "评审已有方案、代码或迁移计划并找出问题，不要求直接实施修改"}},
+        {"use": "group/architect", "when": {"intent": "架构设计、系统拆分、测试架构或技术方案，以方案决策为主要输出"}},
+        {"use": "group/tests", "when": {"intent": "仅编写或修复常规测试、测试配置，不包含主要业务功能修改"}},
+        {"use": "group/implement", "when": {"intent": "实现功能、修改业务代码或定位并修复缺陷，包括必要测试和按截图实现界面"}},
+        {"use": "group/vision", "when": {"intent": "识别图片、提取文字、解释图表或描述截图，以理解内容为主要输出"}},
+        {"use": "group/vision", "when": {"images": true}},
+        {"use": "group/long", "when": {"tokens": "500k"}}
       ]
     }
   ]

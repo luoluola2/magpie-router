@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -80,8 +81,8 @@ def main(arguments: list[str] | None = None) -> int:
                 return 1 if any(line.startswith(("CHANGE", "MISSING")) for line in lines) else 0
             if not args.yes:
                 raise MagpieError("应用路由规范需要 --yes。")
-            print("\n".join(apply_spec()))
+            apply_spec()
         return 0
-    except MagpieError as error:
+    except (MagpieError, OSError, sqlite3.Error) as error:
         print(f"错误：{error}", file=sys.stderr)
         return 2

@@ -30,6 +30,11 @@ class Rule:
     target: str
     conditions: tuple[tuple[str, str], ...]
 
+    @property
+    def targets(self) -> tuple[str, ...]:
+        """返回规则声明的候选顺序，保留多层模型 id。"""
+        return tuple(self.target.split(","))
+
 
 @dataclass(frozen=True)
 class RouteGroup:
@@ -74,32 +79,94 @@ def token_count(value: str) -> str:
     return str(count)
 
 
+def normalize_conditions(raw: dict) -> tuple[tuple[str, str], ...]:
+    """校验支持的 AND 条件并规范顺序；不忽略未知键或假值。"""
+    if not isinstance(raw, dict) or not raw or set(raw) - {"compact", "images", "tokens", "intent", "effort"}:
+        raise MagpieError(f"不支持的规则条件：{raw}")
+    normalized = {}
+    for key, value in raw.items():
+        if key in {"compact", "images"}:
+            if value is not True and value != "true":
+                raise MagpieError(f"{key} 必须明确为 true。")
+            normalized[key] = "true"
+        elif key == "tokens":
+            normalized[key] = token_count(str(value))
+            if int(normalized[key]) <= 0:
+                raise MagpieError("tokens 必须大于零。")
+        elif key == "effort":
+            if not isinstance(value, str) or value not in {"on", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}:
+                raise MagpieError(f"不支持的推理级别：{value}")
+            normalized[key] = value
+        else:
+            if not isinstance(value, str) or not value.strip() or "\n" in value:
+                raise MagpieError("intent 必须是单行非空文本。")
+            normalized[key] = value
+    return tuple(sorted(normalized.items()))
+
+
 def _rule_conditions(body: str) -> tuple[tuple[str, str], ...]:
-    """把 magpie 的单条件规则正文转换为规范条件。"""
-    if body in {"compact", "compacting"}:
-        return (("compact", "true"),)
-    if body == "images":
-        return (("images", "true"),)
-    tokens = re.fullmatch(r"tokens\s*(?:>=|≥)\s*(\d+[kKmM]?)", body)
-    if tokens:
-        return (("tokens", token_count(tokens.group(1))),)
-    intent = re.fullmatch(r'intent\s+"(.*)"', body)
-    if intent:
-        return (("intent", intent.group(1)),)
-    raise MagpieError(f"无法识别规则：{body}")
+    """完整解析 CLI 的 AND 正文；引号中的分隔符不作为条件边界。"""
+    remaining = body.strip()
+    conditions = {}
+    while remaining:
+        if remaining.startswith('intent "'):
+            try:
+                value, end = json.JSONDecoder().raw_decode(remaining[7:])
+            except json.JSONDecodeError as error:
+                raise MagpieError(f"无法识别意图引号：{body}") from error
+            key = "intent"
+            remaining = remaining[7 + end:]
+        else:
+            matched = re.match(
+                r"(tokens\s*(?:>=|≥)\s*(\d+[kKmM]?)|"
+                r"effort\s*(?:>=|≥)\s*(\w+)|"
+                r"effort\s+on\b|images\b|compacting\b|compact\b)",
+                remaining,
+            )
+            if not matched:
+                raise MagpieError(f"无法完整识别规则：{body}")
+            fragment = matched.group(0)
+            if fragment.startswith("tokens"):
+                key, value = "tokens", matched.group(2)
+            elif fragment.startswith("effort"):
+                key, value = "effort", matched.group(3) or "on"
+            else:
+                key, value = ("images" if fragment == "images" else "compact"), True
+            remaining = remaining[matched.end():]
+        if key in conditions:
+            raise MagpieError(f"规则存在重复条件：{body}")
+        conditions[key] = value
+        remaining = remaining.strip()
+        if remaining:
+            if not remaining.startswith("·"):
+                raise MagpieError(f"无法识别条件分隔符：{body}")
+            remaining = remaining[1:].strip()
+            if not remaining:
+                raise MagpieError(f"规则条件不完整：{body}")
+    return normalize_conditions(conditions)
 
 
 def _parse_rules(reference: str, output: str) -> tuple[Rule, ...]:
     """解析规则区；没有规则区时返回空，有规则区但无法识别时失败。"""
     rules: list[Rule] = []
+    in_rules = False
     for line in output.splitlines():
-        matched = re.match(r"^\s+(?:rules\s+)?(\d+)\s+(.+?)\s+(?:→|->)\s+(\S+)\s*$", line)
-        if not matched:
+        if re.match(r"^  rules\s+", line):
+            in_rules = True
+        elif in_rules and re.match(r"^  \S", line):
+            break
+        if not in_rules or not line.strip():
             continue
+        matched = re.fullmatch(r"\s+(?:rules\s+)?(\d+)\s+(.+)\s+(?:→|->)\s+(.+?)\s*", line)
+        if not matched:
+            raise MagpieError(f"{reference} 存在无法识别的规则行。")
         position = int(matched.group(1))
         if position != len(rules) + 1:
             raise MagpieError(f"{reference} 的规则序号不连续。")
-        rules.append(Rule(matched.group(3), _rule_conditions(matched.group(2).strip())))
+        targets = tuple(part.strip() for part in matched.group(3).split(","))
+        if any(not target or re.search(r"\s", target) for target in targets) or len(set(targets)) != len(targets):
+            raise MagpieError(f"{reference} 存在无效或重复规则目标。")
+        rules.append(Rule(",".join(targets), _rule_conditions(matched.group(2).strip())))
     if re.search(r"^\s{2}rules\s+", output, re.MULTILINE) and not rules:
         raise MagpieError(f"{reference} 的规则区无法识别。")
     return tuple(rules)

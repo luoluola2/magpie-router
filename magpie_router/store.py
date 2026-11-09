@@ -175,6 +175,30 @@ def record_apply(path: Path, group_id: str, before: dict, after: dict, ok: bool,
         )
 
 
+def begin_apply(path: Path | None, group_id: str, before: dict, target: dict) -> int:
+    """在执行外部写操作前提交基线与目标，进程中断后仍可恢复。"""
+    with connect(initialize(path)) as connection:
+        cursor = connection.execute(
+            "INSERT INTO apply_log (taken_at, group_id, before_json, after_json, ok, error) VALUES (?, ?, ?, ?, 0, ?)",
+            (
+                datetime.now(timezone.utc).isoformat(), group_id,
+                json.dumps(before, ensure_ascii=False),
+                json.dumps({"target": target}, ensure_ascii=False),
+                "in_progress",
+            ),
+        )
+        return cursor.lastrowid
+
+
+def finish_apply(path: Path | None, run_id: int, after: dict, ok: bool, error: str = "") -> None:
+    """写入回读结果或失败恢复结果，保留原有 before_json。"""
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE apply_log SET after_json=?, ok=?, error=? WHERE id=?",
+            (json.dumps(after, ensure_ascii=False), int(ok), error, run_id),
+        )
+
+
 def latest_completeness(path: Path | None = None) -> str:
     """返回最近一次观测的完整性。"""
     with connect(path or database_path()) as connection:
