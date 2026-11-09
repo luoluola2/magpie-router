@@ -5,7 +5,7 @@ description: 盘点、诊断并长期维护 magpie 的多供应商模型路由�
 
 # 维护 magpie 路由
 
-把 magpie 当作事实来源，把每次优化当作有基线的受控变更。先读仓库的 `GLOSSARY.md`、`policies/README.md`、`policies/routing-overview.md` 和 `policies/providers.md`。 路由编排以 `policies/routing.json` 为准。
+把 magpie 当作事实来源，把每次优化当作有基线的受控变更。先读仓库的 `GLOSSARY.md`、`policies/README.md`、`policies/cost-model.md`、`policies/routing-overview.md` 和 `policies/providers.md`。 路由编排以 `policies/routing.json` 为准。
 
 ## 工作流程
 
