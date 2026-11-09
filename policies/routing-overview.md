@@ -3,6 +3,7 @@
 本表是个人路由的长期维护入口，用于记录**渠道订阅差异、模型能力差异、任务分配和候选变更**。当前目标是 `policies/routing.json` 的 v2：十二组，按 Workload 分流，并把昂贵 SOTA 限制在手动入口。
 magpie 是实际路由的事实来源；本表用于人读和决策，`policies/routing.json` 是应用接口的期望配置。二者不一致时先查明原因，不静默覆盖。
 
+通用子代理的职责、委派契约及客户端部署状态见 `subagents/README.md`；子代理选择任务入口，本表维护入口之后的路由策略。
 
 **资料基线**：2026-11-09（Asia/Singapore）。除明确标为“目标”的内容外，参数来自本机 magpie 的 `model spec`、`model price`、`provider`、`groups` 输出；尚未针对真实任务做模型对照。价格为 magpie 对对应供应商路径的展示价或参考价，不必然等于订阅成本。
 
