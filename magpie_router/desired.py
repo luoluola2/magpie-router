@@ -16,6 +16,7 @@ APPLY_ORDER = (
     "group/tests",
     "group/long",
     "group/compact",
+    "group/openrouter-free",
     "group/work",
 )
 ARCHITECT_INTENT = "架构设计、跨模块重构或技术方案，而不是直接修改代码"

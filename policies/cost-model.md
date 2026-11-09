@@ -29,7 +29,7 @@ Grok 多个模型共享同一 Pro 订阅的周窗口。公开页面的套餐名�
 | --- | --- | --- | --- |
 | DeepSeek 官方 `deepseek-flash` | 高峰：未命中输入 $0.30、缓存命中 $0.006、输出 $1.20；非高峰各为一半 | 高峰为周一至周五 UTC 01:00–04:00 与 06:00–10:00；周末及中国法定节假日全天为非高峰。来源：[DeepSeek 价格](https://api-docs.deepseek.com/quick_start/pricing/) | 仅明确指定时使用 |
 | 鱼鱼 `claude-opus-5-5` | 价格页列出：输入 $4、输出 $20、缓存读取 $0.20、五分钟缓存写入 $5、一小时缓存写入 $8 | “Claude API - 标准”分组显示 0.2 倍率，但当前账户实际分组及倍率是否生效尚未确认。来源：`https://app.yylx.io/api/v1/model-plaza`（2026-11-09） | 仅明确指定时使用 |
-| OpenRouter | 按所选上游模型价格计费 | Standard 计划购买额度时另收 5.5%，不在每次请求上重复加收。`:free` 模型有请求限制且不保证具体模型。来源：[OpenRouter 价格](https://openrouter.ai/pricing) | 候选或明确指定 |
+| OpenRouter | 按所选上游模型价格计费 | Standard 购入额度另收 5.5%。四个 :free 兜底模型的模型价格为 0，但有每分钟和每日请求限制。来源：[OpenRouter 价格](https://openrouter.ai/pricing) | 仅作为 group/openrouter-free 的最后兜底 |
 | SiliconFlow | 待确认 | 2026-11-09 官方公开价格页未返回可核验的模型单价 | 不根据缺失价格排序 |
 | WorkBuddy | 待确认 | 积分与模型和任务复杂度相关，但公开资料没有逐模型积分单价。来源：[WorkBuddy 积分](https://www.codebuddy.cn/docs/workbuddy/Credits) | 继续按实时积分与赠费证据评估 |
 

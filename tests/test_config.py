@@ -38,7 +38,7 @@ class SpecTests(unittest.TestCase):
         """规范包含 500k、七条规则、Light 默认入口和不同的评审顺序。"""
         spec = load_spec()
         self.assertEqual([group.id for group in spec.groups], [
-            "group/architect", "group/review", "group/tests", "group/long", "group/compact", "group/work"])
+            "group/architect", "group/review", "group/tests", "group/long", "group/compact", "group/openrouter-free", "group/work"])
         work = spec.groups[-1]
         self.assertEqual(work.members[0], "group/light")
         self.assertEqual(work.classifier, "group/light")

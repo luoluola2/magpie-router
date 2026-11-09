@@ -9,7 +9,7 @@
         "opencode-go/kimi-k3.1-pro",
         "app-yylx-io-10275/claude-opus-5-5",
         "codex/gpt-6.1-sol",
-        "grok/grok-4.7"
+        "grok/grok-4.7@500k"
       ]
     },
     {
@@ -18,9 +18,9 @@
       "stays": "session",
       "members": [
         "codex/gpt-6.1-sol",
-        "app-yylx-io-10275/claude-opus-5-5",
         "opencode-go/kimi-k3.1-pro",
-        "grok/grok-4.7"
+        "app-yylx-io-10275/claude-opus-5-5",
+        "grok/grok-4.7@500k"
       ]
     },
     {
@@ -57,6 +57,17 @@
       ]
     },
     {
+      "id": "group/openrouter-free",
+      "routing": "order",
+      "stays": "turn",
+      "members": [
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
+        "openrouter/cohere/north-mini-code:free",
+        "openrouter/nvidia/nemotron-3.5-lightning:free"
+      ]
+    },
+    {
       "id": "group/work",
       "routing": "order",
       "stays": "turn",
@@ -68,7 +79,8 @@
         "group/review",
         "group/tests",
         "group/compact",
-        "group/long"
+        "group/long",
+        "group/openrouter-free"
       ],
       "rules": [
         {
