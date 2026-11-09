@@ -4,10 +4,11 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from magpie_router.desired import DesiredGroup, DesiredSpec, load_spec
+from magpie_router.desired import DesiredGroup, DesiredSpec, _validate_v1, load_spec
 from magpie_router.magpie import MagpieError
 from magpie_router.rollout import apply_group, apply_spec, rule_arguments
 from magpie_router.routing import Member, RouteGroup, Rule, parse_group
@@ -38,14 +39,51 @@ class SpecTests(unittest.TestCase):
         """规范包含 500k、七条规则、Light 默认入口和不同的评审顺序。"""
         spec = load_spec()
         self.assertEqual([group.id for group in spec.groups], [
-            "group/architect", "group/review", "group/tests", "group/long", "group/compact", "group/openrouter-free", "group/work"])
+            "group/fallback", "group/architect", "group/review", "group/tests", "group/long",
+            "group/compact", "group/implement", "group/light", "group/work"])
+        groups = {group.id: group for group in spec.groups}
         work = spec.groups[-1]
         self.assertEqual(work.members[0], "group/light")
         self.assertEqual(work.classifier, "group/light")
         self.assertEqual(work.rules[1].conditions, (("tokens", "500000"),))
         self.assertEqual(len(work.rules), 7)
-        self.assertNotEqual(spec.groups[0].members, spec.groups[1].members)
-        self.assertNotIn("build-fast", " ".join(spec.groups[2].members))
+        self.assertNotEqual(groups["group/architect"].members, groups["group/review"].members)
+        self.assertNotIn("build-fast", " ".join(groups["group/tests"].members))
+
+    def test_fallback_is_leaf_and_last_in_every_task_group(self):
+        """兜底跨供应商、无环，且只从二级任务组末尾进入。"""
+        spec = load_spec()
+        groups = {group.id: group for group in spec.groups}
+        fallback = groups["group/fallback"]
+        self.assertEqual(fallback.members[0], "workbuddy/hy4free")
+        self.assertGreater(len({member.split("/", 1)[0] for member in fallback.members}), 1)
+        self.assertTrue(all(not member.startswith("group/") for member in fallback.members))
+        self.assertNotIn("group/fallback", groups["group/work"].members)
+        self.assertNotIn("group/openrouter-free", groups)
+        for reference in groups["group/work"].members:
+            self.assertEqual(groups[reference].members[-1], "group/fallback")
+            self.assertEqual(groups[reference].members.count("group/fallback"), 1)
+
+    def test_rejects_direct_fallback_and_reverse_reference(self):
+        """拒绝 Work 直连兜底，以及兜底反向指向任务组。"""
+        spec = load_spec()
+        work = spec.groups[-1]
+        invalid_work = replace(work, members=work.members + ("group/fallback",))
+        with self.assertRaises(MagpieError):
+            _validate_v1(spec.groups[:-1] + (invalid_work,))
+        with self.assertRaises(MagpieError):
+            _validate_v1(spec.groups[:-1] + (replace(work, classifier="group/fallback"),))
+        invalid_fallback = replace(spec.groups[0], members=("group/light",))
+        with self.assertRaises(MagpieError):
+            _validate_v1((invalid_fallback,) + spec.groups[1:])
+
+    def test_rejects_task_without_final_fallback(self):
+        """缺少二级组末位兜底时给出配置错误。"""
+        spec = load_spec()
+        architect = spec.groups[1]
+        invalid = replace(architect, members=architect.members[:-1])
+        with self.assertRaises(MagpieError):
+            _validate_v1((spec.groups[0], invalid) + spec.groups[2:])
 
     def test_intent_rule_carries_classifier(self):
         """含意图的规则在建立时同时提供分类器。"""

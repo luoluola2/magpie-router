@@ -2,6 +2,21 @@
   "version": "v1",
   "groups": [
     {
+      "id": "group/fallback",
+      "routing": "order",
+      "stays": "turn",
+      "members": [
+        "workbuddy/hy4free",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
+        "openrouter/cohere/north-mini-code:free",
+        "openrouter/nvidia/nemotron-3.5-lightning:free",
+        "opencode-go/qwen3.8-flash",
+        "codex/gpt-6-luna",
+        "grok/grok-4.7@500k"
+      ]
+    },
+    {
       "id": "group/architect",
       "routing": "order",
       "stays": "session",
@@ -9,7 +24,8 @@
         "opencode-go/kimi-k3.1-pro",
         "app-yylx-io-10275/claude-opus-5-5",
         "codex/gpt-6.1-sol",
-        "grok/grok-4.7@500k"
+        "grok/grok-4.7@500k",
+        "group/fallback"
       ]
     },
     {
@@ -20,7 +36,8 @@
         "codex/gpt-6.1-sol",
         "opencode-go/kimi-k3.1-pro",
         "app-yylx-io-10275/claude-opus-5-5",
-        "grok/grok-4.7@500k"
+        "grok/grok-4.7@500k",
+        "group/fallback"
       ]
     },
     {
@@ -31,7 +48,8 @@
         "workbuddy/deepseek-v4.1-flash",
         "opencode-go/deepseek-v4.1-flash",
         "opencode-go/claude-haiku-5-5",
-        "grok/grok-4.7"
+        "grok/grok-4.7",
+        "group/fallback"
       ]
     },
     {
@@ -42,7 +60,8 @@
         "opencode-go/kimi-k3.1-pro",
         "workbuddy/hy4free",
         "workbuddy/deepseek-v4.1-flash",
-        "app-yylx-io-10275/claude-opus-5-5"
+        "app-yylx-io-10275/claude-opus-5-5",
+        "group/fallback"
       ]
     },
     {
@@ -53,18 +72,34 @@
         "workbuddy/deepseek-v4.1-flash:low",
         "opencode-go/deepseek-v4.1-flash:low",
         "opencode-go/claude-haiku-5-5:low",
-        "deepseek/deepseek-flash:none"
+        "deepseek/deepseek-flash:none",
+        "group/fallback"
       ]
     },
     {
-      "id": "group/openrouter-free",
+      "id": "group/implement",
       "routing": "order",
-      "stays": "turn",
+      "stays": "session",
       "members": [
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/google/gemma-4-26b-a4b-it:free",
-        "openrouter/cohere/north-mini-code:free",
-        "openrouter/nvidia/nemotron-3.5-lightning:free"
+        "workbuddy/hy4free",
+        "opencode-go/kimi-k3.1-pro",
+        "codex/gpt-6.1-terra",
+        "codex/gpt-6.1-sol",
+        "grok/grok-4.7@500k",
+        "group/fallback"
+      ]
+    },
+    {
+      "id": "group/light",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "workbuddy/hy4free",
+        "workbuddy/deepseek-v4.1-flash:low",
+        "opencode-go/deepseek-v4.1-flash:low",
+        "opencode-go/claude-haiku-5-5:low",
+        "deepseek/deepseek-flash:low",
+        "group/fallback"
       ]
     },
     {
@@ -79,8 +114,7 @@
         "group/review",
         "group/tests",
         "group/compact",
-        "group/long",
-        "group/openrouter-free"
+        "group/long"
       ],
       "rules": [
         {

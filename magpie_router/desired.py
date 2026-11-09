@@ -11,12 +11,14 @@ from .routing import RouteGroup, Rule, token_count
 
 SPEC_VERSION = "v1"
 APPLY_ORDER = (
+    "group/fallback",
     "group/architect",
     "group/review",
     "group/tests",
     "group/long",
     "group/compact",
-    "group/openrouter-free",
+    "group/implement",
+    "group/light",
     "group/work",
 )
 ARCHITECT_INTENT = "架构设计、跨模块重构或技术方案，而不是直接修改代码"
@@ -113,6 +115,18 @@ def _validate_v1(groups: tuple[DesiredGroup, ...]) -> None:
     if architect == review or architect[0] == review[0]:
         raise MagpieError("Architect 与 Review 必须使用不同的首选模型。")
     work = by_id["group/work"]
+    if (
+        "group/fallback" in work.members
+        or work.classifier == "group/fallback"
+        or any(rule.target == "group/fallback" for rule in work.rules)
+    ):
+        raise MagpieError("Work 不能直接调用 Fallback。")
+    fallback = by_id["group/fallback"]
+    if any(member.startswith("group/") for member in fallback.members) or fallback.rules or fallback.classifier:
+        raise MagpieError("Fallback 只能包含具体模型，不能反向引用任务组或分类器。")
+    for reference in work.members:
+        if reference not in by_id or by_id[reference].members[-1] != "group/fallback":
+            raise MagpieError(f"{reference} 必须以 group/fallback 作为最后成员。")
     if work.members[0] != "group/light" or work.classifier != "group/light" or work.stays != "turn":
         raise MagpieError("Work 必须默认进入 Light，并由 Light 担任分类器。")
     if len(work.rules) != 7 or ("tokens", "500000") not in work.rules[1].conditions:

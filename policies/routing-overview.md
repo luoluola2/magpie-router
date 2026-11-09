@@ -24,7 +24,7 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 | Grok | Grok Pro，单一订阅账户 | 周窗口；不同模型的实际额度与上限按供应商规则，不能从 Plus 直接类推 | 同档候补和长上下文候选；当前引用与暴露状态不一致，先修复 |
 | 鱼鱼连线-A\ | 按量 API 中转 | Opus 5.5 的标价、缓存价和未确认倍率见 `cost-model.md` | 仅明确指定时使用，不作为自动故障转移 |
 | DeepSeek | 官方按量 API | 高峰、非高峰和缓存价格见 cost-model.md | 仅明确指定时使用 |
-| OpenRouter | 多模型聚合 API | 免费模型、付费模型与账户余额分开；免费路由不保证具体模型 | 用于候选探索及冷备，不能把所有 `:free` 当同一质量或固定模型 |
+| OpenRouter | 多模型聚合 API | 免费模型、付费模型与账户余额分开；各免费路径仍共享平台限制 | 四个已核实零价格的具体模型进入跨供应商 Fallback，不能把所有 `:free` 当同一质量 |
 | SiliconFlow | 开源模型聚合 API | 有免费模型和赠费可能；余额查询接口当前不可用，需人工页面核对 | 补充不同开源路径与故障转移，先评估再进入核心组 |
 
 ## 三、模型与路径能力表
@@ -45,7 +45,28 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 | `grok/grok-4.7@500k` | Pro 共享周窗口 | 500k / 未知 | 支持 | low 至 xhigh | 当前唯一暴露 Grok 路径，在 Implement 后备 |
 | `app-yylx-io-10275/claude-opus-5-5` | 按量 API | 1M / 128k | 支持 | low 至 max | 现金成本见 `cost-model.md`；当前仍在部分路由中，目标是仅明确指定时使用 |
 | `deepseek/deepseek-flash` | 官方 API | 1M / 384k | 支持 | none、low、high、max | Light/Compact 后备；不建议持续作为低成本分类器 |
-| OpenRouter / SiliconFlow 候选 | 免费或按量，逐路径核实 | 逐路径核实 | 逐路径核实 | 逐路径核实 | 先作为调研和冷备，不直接插入核心路由 |
+| OpenRouter / SiliconFlow 候选 | 免费或按量，逐路径核实 | 逐路径核实 | 逐路径核实 | 逐路径核实 | OpenRouter 四个指定免费模型进入 Fallback；SiliconFlow 价格未知，暂不加入 |
+
+### 统一兜底：`group/fallback`
+
+拓扑为 `Work → 二级任务组 → Fallback → 具体模型`。Work 不直接把 Fallback 作为成员、规则目标或分类器；Architect、Implement、Review、Tests、Light、Compact、Long 的最后一个成员均为 `group/fallback`。
+
+Fallback 使用 `routing=order`、`stays=turn`，按下表顺序执行，不引用任何任务组，避免反向循环。它是跨供应商的通用恢复路径，不保证与每个任务组的首选模型质量等价。
+
+| 顺序 | 具体路径 | 成本依据 |
+| --- | --- | --- |
+| 1 | `workbuddy/hy4free` | 本机 `model price` 明确输入、输出及缓存为零 |
+| 2 | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | 本机价格为零 |
+| 3 | `openrouter/google/gemma-4-26b-a4b-it:free` | 本机价格为零 |
+| 4 | `openrouter/cohere/north-mini-code:free` | 本机价格为零 |
+| 5 | `openrouter/nvidia/nemotron-3.5-lightning:free` | 本机价格为零 |
+| 6 | `opencode-go/qwen3.8-flash` | 已购 Go 订阅路径，仍受密钥和模型额度约束 |
+| 7 | `codex/gpt-6-luna` | 已购 Plus 路径，与同账户其他模型共享额度 |
+| 8 | `grok/grok-4.7@500k` | 已购 Pro 路径，与同账户其他模型共享额度 |
+
+各候选能力和上下文不同；配置回读、可用标记及无环检查不等于真实请求的图像兼容、工具调用或长上下文验证。免费限额也不能因增加四个 OpenRouter 模型而视作四份独立额度。
+
+本次只迁移兜底拓扑，各二级组原有主链和规则保持。原有鱼鱼及 DeepSeek 官方路径仍在部分主链中，是否移除按既有成本政策另行处理；它们不进入 Fallback。迁移前快照保存于未跟踪的 `.local/fallback-before-*.json`，每组应用结果写入本地 SQLite。
 
 ## 四、目标任务编排
 
@@ -63,6 +84,7 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 | Light | 简单修改、短问答、未分类轻任务 | 免费与订阅低档位优先；不为消耗周额度把它升级为复杂任务 |
 | Compact | 单次压缩 | `stays=turn`，低推理、低成本；无需长期会话粘性 |
 | Classify | 意图分类 | 单独低推理组，优先 Haiku 等适合分类的路径；不再复用 Light 整组 |
+| Fallback | 当前七个二级组的末位通用兜底 | 跨供应商免费及已购订阅模型，不由 Work 直接调用；未来新增任务组同样在末尾引用 |
 
 ### 目标规则顺序
 
@@ -92,7 +114,8 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 
 | 项目 | 状态 | 下一步 |
 | --- | --- | --- |
-| 当前规范与实际路由 | `policies/routing.json` 中六个目标组在 2026-11-09 应用后曾回读一致 | 本次只更新总表，未重新全量回读每个组；需要变更时先 `route diff` |
+| 当前规范与实际路由 | 统一兜底迁移后，规范覆盖 Fallback、七个二级任务组和 Work，共九组 | 已逐组回读确认；后续修改前仍运行 `route diff` |
+| 兜底拓扑 | Work 不直连，七个二级任务组末位引用 `group/fallback`；旧组已删除 | 后续新增二级组同样在末位接入，并防止反向循环 |
 | 图片分流 | 当前 `images` 直接指向 Architect | 新增 Vision，明确视觉意图和未分类带图请求的处理 |
 | 长请求 | 当前 500k 规则优先于任务意图 | 调整规则并让任务组提供足够上下文后备 |
 | Grok 引用 | Architect、Review、Tests 的普通 `grok-4.7` 未暴露 | 统一使用已暴露路径，或单独审批重新暴露普通模型 |
@@ -119,3 +142,4 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 | 2026-11-09 | 引用成本模型，区分固定订阅与增量现金成本 | 去除未经比较的“较贵”和自动 API 兜底表述；不改变当前路由 |
 | 2026-11-09 | 增加 group/openrouter-free 作为 Work 最后兜底 | 仅使用四个已核实的零价格、支持工具且上下文至少 256k 的模型；免费额度有每日请求限制 |
 | 2026-11-09 | 增加 group/openrouter-free 作为 Work 最后兜底 | 四个零价格、支持工具且上下文至少 256k 的模型；免费请求有每日限制 |
+| 2026-11-09 | 以跨供应商 Fallback 替代 OpenRouter Free | Hy4 免费路径首位，追加免费及已购订阅候选；七个二级组末位引用，移除 Work 直连和旧组 |
