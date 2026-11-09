@@ -7,12 +7,14 @@ import sys
 from pathlib import Path
 
 from .magpie import MagpieError
+from .rollout import apply_spec, sync_and_diff
 from .routing import apply_order_plan, audit, create_order_plan, inspect, load_plan, write_plan
+from .store import initialize, sync_observation
 
 
 def build_parser() -> argparse.ArgumentParser:
     """构建命令行参数解析器。"""
-    parser = argparse.ArgumentParser(prog="magpie-router", description="以证据和审批维护 magpie 路由。")
+    parser = argparse.ArgumentParser(prog="magpie-router", description="维护 magpie 路由配置。")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("inspect", help="只读盘点 magpie")
     commands.add_parser("audit", help="审计路由组可用性")
@@ -28,6 +30,17 @@ def build_parser() -> argparse.ArgumentParser:
     apply = commands.add_parser("apply", help="核对基线后应用一个单组计划")
     apply.add_argument("plan", type=Path, help="计划 JSON 路径")
     apply.add_argument("--yes", action="store_true", help="确认已获得本次配置变更批准")
+
+    database = commands.add_parser("db", help="本地配置镜像")
+    database_commands = database.add_subparsers(dest="db_command", required=True)
+    database_commands.add_parser("init", help="创建或补齐 SQLite 镜像")
+    database_commands.add_parser("sync", help="只读同步 magpie 配置")
+
+    route = commands.add_parser("route", help="比较或应用 policies/routing.json")
+    route_commands = route.add_subparsers(dest="route_command", required=True)
+    route_commands.add_parser("diff", help="显示规范与实时路由的差异")
+    route_apply = route_commands.add_parser("apply", help="按规范逐组应用路由")
+    route_apply.add_argument("--yes", action="store_true", help="确认应用 policies/routing.json")
     return parser
 
 
@@ -55,6 +68,19 @@ def main(arguments: list[str] | None = None) -> int:
             actual, report = apply_order_plan(load_plan(args.plan))
             print(f"已验证 {actual.id}：{[member.id for member in actual.members]}")
             print(f"应用记录与回滚计划：{report}")
+        elif args.command == "db":
+            if args.db_command == "init":
+                print(f"配置镜像：{initialize()}")
+            else:
+                print(f"已同步，目录{sync_observation()}。")
+        elif args.command == "route":
+            if args.route_command == "diff":
+                lines = sync_and_diff()
+                print("\n".join(lines))
+                return 1 if any(line.startswith(("CHANGE", "MISSING")) for line in lines) else 0
+            if not args.yes:
+                raise MagpieError("应用路由规范需要 --yes。")
+            print("\n".join(apply_spec()))
         return 0
     except MagpieError as error:
         print(f"错误：{error}", file=sys.stderr)

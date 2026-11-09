@@ -24,12 +24,24 @@ class Member:
 
 
 @dataclass(frozen=True)
+class Rule:
+    """一条路由规则；条件使用稳定的键值序列表示。"""
+
+    target: str
+    conditions: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
 class RouteGroup:
     """magpie 中一个路由组的实时配置。"""
 
     id: str
     name: str
     members: tuple[Member, ...]
+    routing: str = ""
+    stays: str = ""
+    rules: tuple[Rule, ...] = ()
+    classifier: str = ""
 
 
 @dataclass(frozen=True)
@@ -46,6 +58,57 @@ def _group_id(reference: str) -> str:
     if not reference.startswith("group/") or not GROUP_ID.fullmatch(reference[6:]):
         raise MagpieError(f"无效路由组引用：{reference}")
     return reference[6:]
+
+
+def token_count(value: str) -> str:
+    """把 500k、1m 或纯数字统一为 token 个数字符串。"""
+    matched = re.fullmatch(r"(\d+)([kKmM])?", value.strip())
+    if not matched:
+        raise MagpieError(f"无法识别 token 数量：{value}")
+    count = int(matched.group(1))
+    suffix = (matched.group(2) or "").lower()
+    if suffix == "k":
+        count *= 1000
+    elif suffix == "m":
+        count *= 1_000_000
+    return str(count)
+
+
+def _rule_conditions(body: str) -> tuple[tuple[str, str], ...]:
+    """把 magpie 的单条件规则正文转换为规范条件。"""
+    if body in {"compact", "compacting"}:
+        return (("compact", "true"),)
+    if body == "images":
+        return (("images", "true"),)
+    tokens = re.fullmatch(r"tokens\s*(?:>=|≥)\s*(\d+[kKmM]?)", body)
+    if tokens:
+        return (("tokens", token_count(tokens.group(1))),)
+    intent = re.fullmatch(r'intent\s+"(.*)"', body)
+    if intent:
+        return (("intent", intent.group(1)),)
+    raise MagpieError(f"无法识别规则：{body}")
+
+
+def _parse_rules(reference: str, output: str) -> tuple[Rule, ...]:
+    """解析规则区；没有规则区时返回空，有规则区但无法识别时失败。"""
+    rules: list[Rule] = []
+    for line in output.splitlines():
+        matched = re.match(r"^\s+(?:rules\s+)?(\d+)\s+(.+?)\s+(?:→|->)\s+(\S+)\s*$", line)
+        if not matched:
+            continue
+        position = int(matched.group(1))
+        if position != len(rules) + 1:
+            raise MagpieError(f"{reference} 的规则序号不连续。")
+        rules.append(Rule(matched.group(3), _rule_conditions(matched.group(2).strip())))
+    if re.search(r"^\s{2}rules\s+", output, re.MULTILINE) and not rules:
+        raise MagpieError(f"{reference} 的规则区无法识别。")
+    return tuple(rules)
+
+
+def _field(output: str, name: str) -> str:
+    """读取组详情中的单个字段；字段缺失时返回空字符串。"""
+    matched = re.search(rf"^\s{{2}}{name}\s+(\S+)", output, re.MULTILINE)
+    return matched.group(1) if matched else ""
 
 
 def parse_group(reference: str, output: str) -> RouteGroup:
@@ -75,7 +138,28 @@ def parse_group(reference: str, output: str) -> RouteGroup:
 
     if not members:
         raise MagpieError(f"{reference} 的成员为空或格式未知。")
-    return RouteGroup(group_id, heading.group(1).strip(), tuple(members))
+    return RouteGroup(
+        group_id,
+        heading.group(1).strip(),
+        tuple(members),
+        _field(output, "routing"),
+        _field(output, "stays"),
+        _parse_rules(reference, output),
+        _field(output, "classifier"),
+    )
+
+
+def group_payload(group: RouteGroup) -> dict:
+    """生成写入本地镜像和回滚日志的组状态。"""
+    return {
+        "id": f"group/{group.id}",
+        "name": group.name,
+        "routing": group.routing,
+        "stays": group.stays,
+        "classifier": group.classifier,
+        "members": [member.id for member in group.members],
+        "rules": [{"target": rule.target, "conditions": dict(rule.conditions)} for rule in group.rules],
+    }
 
 
 def read_group(reference: str) -> RouteGroup:

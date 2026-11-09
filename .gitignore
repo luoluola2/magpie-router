@@ -9,3 +9,6 @@ __pycache__/
 *.magpie-backup.parts/
 *.magpie-usage
 *.magpie-quotas
+*.db
+*.db-wal
+*.db-shm

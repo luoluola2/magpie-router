@@ -22,7 +22,12 @@ python -m magpie_router inspect
 python -m magpie_router audit
 python -m magpie_router plan set-order group/long grok/grok-4.7@500k --output .local/long.plan.json
 python -m magpie_router apply .local/long.plan.json --yes
+python -m magpie_router db sync
+python -m magpie_router route diff
+python -m magpie_router route apply --yes
 ```
+
+`policies/routing.json` 是当前期望路由。`route apply --yes` 会逐组修改 magpie，并在失败时恢复该组。本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
 
 `plan` 和 `apply` 在成员未暴露或路由组状态已变化时拒绝继续，不会顺带暴露模型或覆盖其他改动。`apply` 成功后把实际结果和回滚计划写入 `.local/`。
 
@@ -30,7 +35,7 @@ python -m magpie_router apply .local/long.plan.json --yes
 
 日常由 Agent 使用项目技能完成 `观测 → 评估 → 提案 → 审批 → 应用 → 验证`。每次决策应来自新的状态与用量证据，不能把某次额度读数、延迟或模型排名永久写死。
 
-调度器、跨多次运行的证据库和自动优化器尚未实现。只有在单次人工审批闭环稳定后，才逐步增加这些能力；自动化不放宽供应商、账号和密钥的审批边界。
+本地 SQLite 镜像只保存路由配置。调度、用量分析和自动优化仍不在本过渡实现中。
 
 ## 文档
 

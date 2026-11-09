@@ -1,0 +1,119 @@
+{
+  "version": "v1",
+  "groups": [
+    {
+      "id": "group/architect",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "opencode-go/kimi-k3.1-pro",
+        "app-yylx-io-10275/claude-opus-5-5",
+        "codex/gpt-6.1-sol",
+        "grok/grok-4.7"
+      ]
+    },
+    {
+      "id": "group/review",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "codex/gpt-6.1-sol",
+        "app-yylx-io-10275/claude-opus-5-5",
+        "opencode-go/kimi-k3.1-pro",
+        "grok/grok-4.7"
+      ]
+    },
+    {
+      "id": "group/tests",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "workbuddy/deepseek-v4.1-flash",
+        "opencode-go/deepseek-v4.1-flash",
+        "opencode-go/claude-haiku-5-5",
+        "grok/grok-4.7"
+      ]
+    },
+    {
+      "id": "group/long",
+      "routing": "order",
+      "stays": "session",
+      "members": [
+        "opencode-go/kimi-k3.1-pro",
+        "workbuddy/hy4free",
+        "workbuddy/deepseek-v4.1-flash",
+        "app-yylx-io-10275/claude-opus-5-5"
+      ]
+    },
+    {
+      "id": "group/compact",
+      "routing": "order",
+      "stays": "turn",
+      "members": [
+        "workbuddy/deepseek-v4.1-flash:low",
+        "opencode-go/deepseek-v4.1-flash:low",
+        "opencode-go/claude-haiku-5-5:low",
+        "deepseek/deepseek-flash:none"
+      ]
+    },
+    {
+      "id": "group/work",
+      "routing": "order",
+      "stays": "turn",
+      "classifier": "group/light",
+      "members": [
+        "group/light",
+        "group/implement",
+        "group/architect",
+        "group/review",
+        "group/tests",
+        "group/compact",
+        "group/long"
+      ],
+      "rules": [
+        {
+          "use": "group/compact",
+          "when": {
+            "compact": true
+          }
+        },
+        {
+          "use": "group/long",
+          "when": {
+            "tokens": "500k"
+          }
+        },
+        {
+          "use": "group/architect",
+          "when": {
+            "images": true
+          }
+        },
+        {
+          "use": "group/architect",
+          "when": {
+            "intent": "架构设计、跨模块重构或技术方案，而不是直接修改代码"
+          }
+        },
+        {
+          "use": "group/review",
+          "when": {
+            "intent": "评审已有方案、架构、代码改动、PR 或迁移计划并找出问题，而不是实现修改"
+          }
+        },
+        {
+          "use": "group/tests",
+          "when": {
+            "intent": "以测试框架、测试配置或批量测试修复为主要任务，且不包含主要业务实现"
+          }
+        },
+        {
+          "use": "group/implement",
+          "when": {
+            "intent": "实现功能或修复缺陷，包括为此编写必要的测试"
+          }
+        }
+      ]
+    }
+  ]
+}
