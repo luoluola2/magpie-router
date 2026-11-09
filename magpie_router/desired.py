@@ -10,7 +10,7 @@ from pathlib import Path
 from .magpie import MagpieError, checked_magpie
 from .routing import GROUP_ID, RouteGroup, Rule, normalize_conditions
 
-SPEC_VERSION = "v2"
+SPEC_VERSION = "v3"
 EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
 
 
@@ -26,6 +26,7 @@ class DesiredGroup:
     classifier: str = ""
     name: str = ""
     context: int | None = None
+    layer: str = ""
 
 
 @dataclass(frozen=True)
@@ -63,18 +64,18 @@ def load_spec(path: Path | None = None) -> DesiredSpec:
         raw = json.loads(spec_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise MagpieError(f"无法读取路由规范：{error}") from error
-    if not isinstance(raw, dict) or set(raw) != {"version", "groups"} or raw.get("version") != SPEC_VERSION:
-        raise MagpieError("路由规范须为 v2；旧配置可从本地回滚快照恢复。")
+    if not isinstance(raw, dict) or set(raw) != {"version", "groups"} or raw.get("version") not in {"v2", SPEC_VERSION}:
+        raise MagpieError("路由规范须为 v2 或 v3。")
     if not isinstance(raw["groups"], list) or not raw["groups"]:
         raise MagpieError("规范缺少 groups。")
-    spec = DesiredSpec(SPEC_VERSION, tuple(_desired_group(item) for item in raw["groups"]))
+    spec = DesiredSpec(raw["version"], tuple(_desired_group(item) for item in raw["groups"]))
     validate_spec(spec)
     return spec
 
 
 def _desired_group(raw: dict) -> DesiredGroup:
     """校验组字段、成员和规则，组合条件均为 AND。"""
-    if not isinstance(raw, dict) or set(raw) - {"id", "name", "routing", "stays", "members", "rules", "classifier", "context"}:
+    if not isinstance(raw, dict) or set(raw) - {"id", "name", "routing", "stays", "members", "rules", "classifier", "context", "layer"}:
         raise MagpieError("路由组结构或字段不受支持。")
     reference = _reference(raw.get("id"))
     if not reference.startswith("group/"):
@@ -120,6 +121,7 @@ def _desired_group(raw: dict) -> DesiredGroup:
         classifier,
         name,
         context,
+        raw.get("layer", ""),
     )
 
 
@@ -162,6 +164,9 @@ def application_order(spec: DesiredSpec) -> tuple[DesiredGroup, ...]:
 
 def validate_spec(spec: DesiredSpec) -> None:
     """校验引用、末位兜底和 SOTA 隔离，不硬编码任务排序或规则数。"""
+    if spec.version == "v3":
+        _validate_layers(spec)
+        return
     by_id = {group.id: group for group in spec.groups}
     if len(by_id) != len(spec.groups):
         raise MagpieError("组 id 重复。")
@@ -194,6 +199,56 @@ def validate_spec(spec: DesiredSpec) -> None:
             raise MagpieError(f"{reference} 只能引用具体模型，不能使用组或分类器。")
     if "group/fallback" in dependencies(by_id["group/work"]):
         raise MagpieError("Work 不能直接调用 Fallback。")
+    application_order(spec)
+
+
+def _validate_layers(spec: DesiredSpec) -> None:
+    """校验相邻层引用、普通任务末位兜底和手动资源隔离。"""
+    groups = {group.id: group for group in spec.groups}
+    if len(groups) != len(spec.groups):
+        raise MagpieError("组 id 重复。")
+    required = {"group/work": "entry", "group/classify": "task", "group/sota": "task",
+                "group/fallback": "pool", "group/pool-sota": "pool"}
+    if any(reference not in groups or groups[reference].layer != layer for reference, layer in required.items()):
+        raise MagpieError("缺少所需入口、分类器、兜底或手动资源池。")
+    if [group.id for group in spec.groups if group.layer == "entry"] != ["group/work"]:
+        raise MagpieError("Work 必须是唯一总入口。")
+    for group in spec.groups:
+        if group.layer not in {"entry", "task", "pool"}:
+            raise MagpieError(f"{group.id} 的层级无效。")
+        for rule in group.rules:
+            if not set(rule.targets) <= set(group.members):
+                raise MagpieError(f"{group.id} 的规则目标必须是本组成员。")
+            if "intent" in dict(rule.conditions) and not group.classifier:
+                raise MagpieError(f"{group.id} 的意图规则缺少分类器。")
+        for reference in group.members:
+            if group.layer == "pool":
+                if reference.startswith("group/"):
+                    raise MagpieError(f"{group.id} 的资源池只能引用模型。")
+            else:
+                expected = "task" if group.layer == "entry" else "pool"
+                if reference not in groups or groups[reference].layer != expected:
+                    raise MagpieError(f"{group.id} 只能引用相邻层：{reference}")
+        if group.classifier and (group.id != "group/work" or group.classifier != "group/classify"):
+            raise MagpieError(f"{group.id} 的分类器不符合分层契约。")
+        if group.layer == "task" and group.id != "group/sota":
+            if group.members.count("group/fallback") != 1 or group.members[-1] != "group/fallback":
+                raise MagpieError(f"{group.id} 必须以唯一 Fallback 结尾。")
+            if any("group/fallback" in rule.targets for rule in group.rules):
+                raise MagpieError(f"{group.id} 不能提前选择 Fallback。")
+        if group.id != "group/sota" and "group/sota" in dependencies(group):
+            raise MagpieError("SOTA 只能手动调用。")
+        if group.id != "group/sota" and "group/pool-sota" in dependencies(group):
+            raise MagpieError("手动 SOTA 资源池不能进入自动链。")
+        if group.id != "group/pool-sota":
+            for reference in group.members:
+                if reference.startswith("group/"):
+                    continue
+                provider, model = model_reference(reference).split("/", 1)
+                if "astra" in model.lower() or "opus" in model.lower() or provider == "deepseek":
+                    raise MagpieError(f"{group.id} 包含仅限手动调用的模型：{reference}")
+    if groups["group/sota"].members != ("group/pool-sota",):
+        raise MagpieError("SOTA 必须仅引用手动资源池。")
     application_order(spec)
 
 
