@@ -1,0 +1,11 @@
+.local/
+.scratch/
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.magpie-backup
+*.magpie-backup.parts/
+*.magpie-usage
+*.magpie-quotas
