@@ -1,10 +1,16 @@
 """四层路由的结构约束。"""
 
 import unittest
+import sqlite3
+import tempfile
+from contextlib import closing
+from pathlib import Path
 from dataclasses import replace
 
 from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, validate_spec
 from magpie_router.magpie import MagpieError
+from magpie_router.store import _replace_current, initialize
+from magpie_router.routing import RouteGroup, Member
 
 
 class LayerTests(unittest.TestCase):
@@ -44,3 +50,13 @@ class LayerTests(unittest.TestCase):
             groups = tuple(replace(group, **changes) if group.id == group_id else group for group in spec.groups)
             with self.subTest(group_id=group_id, changes=changes), self.assertRaises(MagpieError):
                 validate_spec(DesiredSpec("v3", groups))
+
+    def test_observed_layer_defaults_to_unknown(self):
+        """镜像只标记已知规范 ID，不臆测未识别组的层级。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "router.db"
+            initialize(path)
+            actual = RouteGroup("other", "Other", (Member("vendor/model", True, ""),), "order", "turn")
+            with closing(sqlite3.connect(path)) as connection:
+                _replace_current(connection, [actual], {"group/known": "pool"})
+                self.assertEqual(connection.execute("SELECT layer FROM groups").fetchone()[0], "unknown")

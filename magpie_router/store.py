@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS observations (
 CREATE TABLE IF NOT EXISTS groups (
     group_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    layer TEXT NOT NULL DEFAULT 'unknown' CHECK (layer IN ('unknown', 'entry', 'task', 'pool')),
     routing TEXT NOT NULL,
     stays TEXT NOT NULL,
     classifier TEXT NOT NULL
@@ -94,6 +95,8 @@ def initialize(path: Path | None = None) -> Path:
         columns = {row["name"] for row in connection.execute("PRAGMA table_info(groups)")}
         if "context" not in columns:
             connection.execute("ALTER TABLE groups ADD COLUMN context INTEGER")
+        if "layer" not in columns:
+            connection.execute("ALTER TABLE groups ADD COLUMN layer TEXT NOT NULL DEFAULT 'unknown'")
     return target
 
 
@@ -111,16 +114,16 @@ def catalog_completeness(providers_output: str) -> str:
     return "complete"
 
 
-def _replace_current(connection: sqlite3.Connection, groups: list[RouteGroup]) -> None:
-    """用最新解析结果替换当前组、成员和规则。"""
+def _replace_current(connection: sqlite3.Connection, groups: list[RouteGroup], layers: dict[str, str]) -> None:
+    """用最新观测替换配置；仅按已知 ID 关联层级，未知组保留 unknown。"""
     connection.execute("DELETE FROM rules")
     connection.execute("DELETE FROM members")
     connection.execute("DELETE FROM groups")
     for group in groups:
         reference = f"group/{group.id}"
         connection.execute(
-            "INSERT INTO groups (group_id, name, routing, stays, classifier, context) VALUES (?, ?, ?, ?, ?, ?)",
-            (reference, group.name, group.routing, group.stays, group.classifier, group.context),
+            "INSERT INTO groups (group_id, name, layer, routing, stays, classifier, context) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (reference, group.name, layers.get(reference, "unknown"), group.routing, group.stays, group.classifier, group.context),
         )
         for position, member in enumerate(group.members, start=1):
             connection.execute(
@@ -158,7 +161,7 @@ def sync_observation(path: Path | None = None, spec_path: Path | None = None) ->
     raw = "\n".join([providers, groups_output, *details.values()])
     now = datetime.now(timezone.utc).isoformat()
     with connect(target) as connection:
-        _replace_current(connection, parsed)
+        _replace_current(connection, parsed, {group.id: group.layer for group in desired.groups if group.layer})
         connection.execute(
             "INSERT INTO observations (taken_at, raw_text, completeness) VALUES (?, ?, ?)",
             (now, raw, completeness),

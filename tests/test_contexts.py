@@ -109,7 +109,7 @@ class ContextTests(unittest.TestCase):
             initialize(path)
             initialize(path)
             with closing(sqlite3.connect(path)) as connection:
-                self.assertEqual(connection.execute("SELECT group_id, context FROM groups").fetchone(), ("group/a", None))
+                self.assertEqual(connection.execute("SELECT group_id, layer, context FROM groups").fetchone(), ("group/a", "unknown", None))
 
     @patch("magpie_router.rollout.checked_magpie")
     @patch("magpie_router.rollout.read_group")
