@@ -76,6 +76,8 @@ class ContextTests(unittest.TestCase):
                     load_spec(path)
         self.assertFalse(same_configuration(self.actual(), self.desired()))
         self.assertTrue(same_configuration(self.actual(1000000), self.desired()))
+        self.assertFalse(same_configuration(self.actual(1048576), self.desired()))
+        self.assertFalse(same_configuration(self.actual(500000), self.desired()))
         self.assertEqual(group_payload(self.actual())["context"], 256000)
         spec = load_spec()
         actual = self.actual()

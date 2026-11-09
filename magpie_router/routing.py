@@ -263,22 +263,55 @@ def inspect() -> dict[str, str]:
     }
 
 
+def topology_findings(groups: list[RouteGroup], spec_path: Path | None = None) -> list[Finding]:
+    """按实时成员检查相邻层引用，规则目标与分类器也纳入同一契约。"""
+    from .desired import load_spec
+
+    spec = load_spec(spec_path)
+    layers = {group.id: group.layer for group in spec.groups}
+    expected_layers = {"entry": "task", "task": "pool"}
+    findings = []
+    actual_ids = {f"group/{group.id}" for group in groups}
+    for missing in sorted(layers.keys() - actual_ids):
+        findings.append(Finding("error", missing, "规范中的路由组不存在。"))
+    for group in groups:
+        reference = f"group/{group.id}"
+        layer = layers.get(reference)
+        if layer is None:
+            findings.append(Finding("warning", reference, "实时组未包含在当前规范中，无法判断层级。"))
+            continue
+        references = [member.id for member in group.members]
+        references.extend(target for rule in group.rules for target in rule.targets)
+        if group.classifier:
+            references.append(group.classifier)
+        for target in references:
+            if layer == "pool":
+                if target.startswith("group/"):
+                    findings.append(Finding("error", reference, f"资源池越层或反向引用路由组：{target}"))
+                continue
+            expected = expected_layers[layer]
+            if layers.get(target) != expected:
+                findings.append(Finding("error", reference, f"应仅引用 {expected} 层，实际引用：{target}"))
+    return findings
+
+
 def audit() -> list[Finding]:
-    """审计所有已声明路由组的可用性与空链风险。"""
+    """审计所有实时组的可用性、空链风险及相邻层引用。"""
     groups_output = checked_magpie(["groups"])
     references = group_references(groups_output)
     if not references:
         raise MagpieError("未找到路由组，或组清单格式无法识别。")
 
     findings = []
-    for reference in references:
-        group = read_group(reference)
+    groups = [read_group(reference) for reference in references]
+    for group in groups:
+        reference = f"group/{group.id}"
         for position, member in enumerate(group.members, start=1):
             if not member.available:
                 findings.append(Finding("warning", reference, f"第 {position} 位 {member.id} 当前不可服务：{member.detail}"))
         if not any(member.available for member in group.members):
             findings.append(Finding("error", reference, "没有任何已声明为可服务的成员。"))
-    return findings
+    return findings + topology_findings(groups)
 
 
 def create_order_plan(reference: str, members: list[str], reason: str) -> dict:

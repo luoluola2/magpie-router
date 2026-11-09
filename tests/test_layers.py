@@ -10,7 +10,7 @@ from dataclasses import replace
 from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, validate_spec
 from magpie_router.magpie import MagpieError
 from magpie_router.store import _replace_current, initialize
-from magpie_router.routing import RouteGroup, Member
+from magpie_router.routing import RouteGroup, Member, Rule, topology_findings
 
 
 class LayerTests(unittest.TestCase):
@@ -60,3 +60,30 @@ class LayerTests(unittest.TestCase):
             with closing(sqlite3.connect(path)) as connection:
                 _replace_current(connection, [actual], {"group/known": "pool"})
                 self.assertEqual(connection.execute("SELECT layer FROM groups").fetchone()[0], "unknown")
+
+    def test_live_topology_checks_members_rules_and_classifier(self):
+        """实时任务直连模型、资源池引用组和规则跨层均必须报告。"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "routing.json"
+            path.write_text(Path("policies/routing.json").read_text(encoding="utf-8"), encoding="utf-8")
+            groups = [
+                RouteGroup("light", "Light", (
+                    Member("workbuddy/hy4free", True, ""), Member("group/fallback", True, ""),
+                ), "order", "turn"),
+                RouteGroup("pool-reason", "Pool Reason", (
+                    Member("group/fallback", True, ""),
+                ), "smart", "auto"),
+                RouteGroup("work", "Work", (
+                    Member("group/light", True, ""),
+                ), "order", "turn", (
+                    Rule("group/pool-long", (("tokens", "400000"),)),
+                ), "group/pool-classify"),
+            ]
+            findings = [finding for finding in topology_findings(groups, path) if finding.group in {
+                "group/light", "group/pool-reason", "group/work",
+            }]
+            messages = [finding.message for finding in findings]
+            self.assertEqual(len(findings), 4)
+            self.assertTrue(all(finding.severity == "error" for finding in findings))
+            self.assertTrue(any("workbuddy/hy4free" in message for message in messages))
+            self.assertTrue(any("group/pool-classify" in message for message in messages))
