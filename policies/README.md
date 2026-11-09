@@ -11,6 +11,6 @@
 
 具体 Policy 在产生真实需求后添加。当前 CLI 只执行显式的成员顺序计划，不会读取本目录后自行优化。
 
-供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。
+供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。 路由调度总表见 `routing-overview.md`，每次套餐、模型、候选或路由变更同步维护。
 
 当前期望路由见 `routing.json`。它是私人使用的过渡规范，应用前用 `python -m magpie_router route diff` 查看差异。
