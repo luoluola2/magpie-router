@@ -3,6 +3,7 @@
   "groups": [
     {
       "id": "group/fallback",
+      "context": 1000000,
       "name": "Fallback",
       "routing": "order",
       "stays": "turn",
@@ -33,6 +34,7 @@
     },
     {
       "id": "group/classify",
+      "context": 256000,
       "name": "Classify",
       "routing": "order",
       "stays": "turn",
@@ -45,6 +47,7 @@
     },
     {
       "id": "group/architect",
+      "context": 1000000,
       "routing": "order",
       "stays": "session",
       "members": [
@@ -60,25 +63,26 @@
     },
     {
       "id": "group/implement",
+      "context": 1000000,
       "routing": "order",
       "stays": "session",
       "members": [
         "codex/gpt-6.1-terra",
         "codex/gpt-6.1-sol",
         "opencode-go/kimi-k3.1-pro",
-        "opencode-go/glm-5.3-flash",
-        "grok/grok-4.7@500k",
-        "workbuddy/hy4free",
+        "workbuddy/deepseek-v4.1-flash:max",
+        "opencode-go/deepseek-v4.1-flash:max",
         "group/fallback"
       ],
       "rules": [
-        {"use": "opencode-go/kimi-k3.1-pro,opencode-go/glm-5.3-flash", "when": {"tokens": "400k"}},
+        {"use": "opencode-go/kimi-k3.1-pro,workbuddy/deepseek-v4.1-flash:max,opencode-go/deepseek-v4.1-flash:max", "when": {"tokens": "400k"}},
         {"use": "codex/gpt-6.1-terra,codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"images": true}},
         {"use": "codex/gpt-6.1-sol,opencode-go/kimi-k3.1-pro", "when": {"effort": "xhigh"}}
       ]
     },
     {
       "id": "group/review",
+      "context": 1000000,
       "routing": "order",
       "stays": "session",
       "members": [
@@ -94,6 +98,7 @@
     },
     {
       "id": "group/tests",
+      "context": 1000000,
       "routing": "order",
       "stays": "session",
       "members": [
@@ -110,6 +115,7 @@
     },
     {
       "id": "group/vision",
+      "context": 1000000,
       "name": "Vision",
       "routing": "order",
       "stays": "turn",
@@ -127,6 +133,7 @@
     },
     {
       "id": "group/light",
+      "context": 1000000,
       "routing": "order",
       "stays": "turn",
       "members": [
@@ -143,6 +150,7 @@
     },
     {
       "id": "group/compact",
+      "context": 1000000,
       "routing": "order",
       "stays": "turn",
       "members": [
@@ -155,6 +163,7 @@
     },
     {
       "id": "group/long",
+      "context": 1000000,
       "routing": "order",
       "stays": "session",
       "members": [
@@ -170,6 +179,7 @@
     },
     {
       "id": "group/sota",
+      "context": 272000,
       "name": "SOTA",
       "routing": "order",
       "stays": "turn",
@@ -180,6 +190,7 @@
     },
     {
       "id": "group/work",
+      "context": 1000000,
       "routing": "order",
       "stays": "turn",
       "classifier": "group/classify",

@@ -25,6 +25,7 @@ class DesiredGroup:
     rules: tuple[Rule, ...] = ()
     classifier: str = ""
     name: str = ""
+    context: int | None = None
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ def load_spec(path: Path | None = None) -> DesiredSpec:
 
 def _desired_group(raw: dict) -> DesiredGroup:
     """校验组字段、成员和规则，组合条件均为 AND。"""
-    if not isinstance(raw, dict) or set(raw) - {"id", "name", "routing", "stays", "members", "rules", "classifier"}:
+    if not isinstance(raw, dict) or set(raw) - {"id", "name", "routing", "stays", "members", "rules", "classifier", "context"}:
         raise MagpieError("路由组结构或字段不受支持。")
     reference = _reference(raw.get("id"))
     if not reference.startswith("group/"):
@@ -107,6 +108,9 @@ def _desired_group(raw: dict) -> DesiredGroup:
     name = raw.get("name", "")
     if not isinstance(name, str) or "\n" in name:
         raise MagpieError(f"{reference} 的显示名称无效。")
+    context = raw.get("context")
+    if "context" in raw and (type(context) is not int or context <= 0):
+        raise MagpieError(f"{reference} 的 context 必须是正整数 token 数。")
     return DesiredGroup(
         raw["id"],
         raw.get("routing", ""),
@@ -115,6 +119,7 @@ def _desired_group(raw: dict) -> DesiredGroup:
         tuple(rules),
         classifier,
         name,
+        context,
     )
 
 
@@ -217,6 +222,7 @@ def same_configuration(actual: RouteGroup, desired: DesiredGroup) -> bool:
         and actual.classifier == desired.classifier
         and [member.id for member in actual.members] == list(desired.members)
         and actual.rules == desired.rules
+        and (desired.context is None or actual.context == desired.context)
     )
 
 
@@ -239,6 +245,7 @@ def diff_lines(actual_groups: list[RouteGroup], spec: DesiredSpec) -> list[str]:
             ("stays", actual.stays, desired.stays),
             ("分类器", actual.classifier, desired.classifier),
             ("规则", actual.rules, desired.rules),
+            ("公布上下文", actual.context, desired.context if desired.context is not None else actual.context),
         ):
             if before != after:
                 lines.append(f"  {label}：{before} → {after}")

@@ -125,7 +125,8 @@ class SpecTests(unittest.TestCase):
 class StoreTests(unittest.TestCase):
     """覆盖镜像初始化和可替换观测。"""
 
-    def test_catalog_partial_and_repeat_init(self):
+    @patch("magpie_router.store.context_windows", return_value={"group/work": 1000000})
+    def test_catalog_partial_and_repeat_init(self, windows):
         """截断目录标记为 partial，重复初始化不破坏观测。"""
         self.assertEqual(catalog_completeness("1 exposed of 2 from example"), "partial")
         with tempfile.TemporaryDirectory() as directory:
@@ -179,7 +180,8 @@ class ApplyTests(unittest.TestCase):
         """成功应用时记录前后 JSON，且不读取网关密钥。"""
         state = {"group": route_group("architect", ["a/a"])}
 
-        def read(reference):
+        def read(reference, **kwargs):
+            """返回假 magpie 的当前组，接受容量回读选项。"""
             return state["group"]
 
         def command(arguments):

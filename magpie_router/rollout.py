@@ -62,6 +62,8 @@ def _mutate(desired: DesiredGroup, current: RouteGroup) -> None:
         settings.append("routing=" + desired.routing)
     if current.stays != desired.stays:
         settings.append("stays=" + desired.stays)
+    if desired.context is not None and current.context != desired.context:
+        settings.append(f"context={desired.context}")
     if settings:
         checked_magpie(["group", "set", short, *settings])
     if replace_rules:
@@ -72,19 +74,21 @@ def _mutate(desired: DesiredGroup, current: RouteGroup) -> None:
 
 
 def restore_group(before: RouteGroup) -> None:
-    """恢复组成员、策略和规则；不要求额外的回读次数。"""
+    """先清除当前剩余规则，再恢复基线；调用方回读验证有效配置。"""
     short = _short_id(f"group/{before.id}")
+    current = read_group(f"group/{before.id}")
+    _remove_rules(f"group/{before.id}", len(current.rules))
     settings = ["models=" + ",".join(member.id for member in before.members)]
     if before.routing:
         settings.append("routing=" + before.routing)
     if before.stays:
         settings.append("stays=" + before.stays)
+    if before.context is not None:
+        settings.append(f"context={before.context}")
     checked_magpie(["group", "set", short, *settings])
-    _remove_rules(f"group/{before.id}", len(before.rules))
     for rule in before.rules:
         checked_magpie(["group", "rule", "add", short, *rule_arguments(rule, before.classifier)])
-    if before.classifier:
-        checked_magpie(["group", "set", short, "classifier=" + before.classifier])
+    checked_magpie(["group", "set", short, "classifier=" + before.classifier])
 
 
 def _payload(desired: DesiredGroup) -> dict:
@@ -92,6 +96,7 @@ def _payload(desired: DesiredGroup) -> dict:
     return {
         "id": desired.id, "routing": desired.routing, "stays": desired.stays,
         "members": list(desired.members), "classifier": desired.classifier,
+        "context": desired.context,
         "rules": [{"target": rule.target, "conditions": dict(rule.conditions)} for rule in desired.rules],
     }
 
@@ -107,7 +112,7 @@ def apply_group(
             raise MagpieError(f"{desired.id} 已被创建，拒绝覆盖。")
         current = None
     else:
-        current = read_group(desired.id)
+        current = read_group(desired.id, include_context=desired.context is not None)
         if baseline is not None and group_payload(current) != group_payload(baseline):
             raise MagpieError(f"{desired.id} 已变化，拒绝覆盖本轮基线。")
     if current is not None and same_configuration(current, desired):
@@ -125,7 +130,7 @@ def apply_group(
             _mutate(desired, current_new)
         else:
             _mutate(desired, current)
-        actual = read_group(desired.id)
+        actual = read_group(desired.id, include_context=desired.context is not None)
         if not same_configuration(actual, desired):
             raise MagpieError(f"{desired.id} 应用后的实际状态与规范不符。")
     except (MagpieError, OSError, sqlite3.Error) as error:
@@ -138,7 +143,9 @@ def apply_group(
                 restored = {}
             else:
                 restore_group(current)
-                restored = group_payload(read_group(desired.id))
+                restored = group_payload(read_group(desired.id, include_context=current.context is not None))
+                if restored != group_payload(current):
+                    raise MagpieError(f"{desired.id} 回滚后的实际配置与基线不符。")
         except (MagpieError, OSError, sqlite3.Error) as restore_error:
             message = f"{error}；回滚失败：{restore_error}"
             finish_apply(db_path, run_id, {}, False, message)
@@ -149,16 +156,16 @@ def apply_group(
     return "created" if create else "applied"
 
 
-def read_all_groups() -> list[RouteGroup]:
+def read_all_groups(*, include_context: bool = False) -> list[RouteGroup]:
     """只读取当前存在的组；详情读取错误不能被当成组不存在。"""
-    return [read_group(ref) for ref in group_references(checked_magpie(["groups"]))]
+    return [read_group(ref, include_context=include_context) for ref in group_references(checked_magpie(["groups"]))]
 
 
 def sync_and_diff(db_path: Path | None = None, spec_path: Path | None = None) -> list[str]:
     """同步镜像并展示差异，新组显示 MISSING 而不报读取失败。"""
     spec = load_spec(spec_path)
     sync_observation(db_path, spec_path)
-    return diff_lines(read_all_groups(), spec)
+    return diff_lines(read_all_groups(include_context=any(group.context is not None for group in spec.groups)), spec)
 
 
 def apply_spec(db_path: Path | None = None, spec_path: Path | None = None) -> list[str]:
@@ -166,7 +173,10 @@ def apply_spec(db_path: Path | None = None, spec_path: Path | None = None) -> li
     spec = load_spec(spec_path)
     check_exposed_models(spec)
     sync_observation(db_path, spec_path)
-    current = {f"group/{group.id}": group for group in read_all_groups()}
+    current = {
+        f"group/{group.id}": group
+        for group in read_all_groups(include_context=any(group.context is not None for group in spec.groups))
+    }
     backup = Path(".local") / (
         "route-before-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8] + ".json"
     )

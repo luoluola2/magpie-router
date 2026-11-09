@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 
 import json
 import os
@@ -13,6 +14,7 @@ from pathlib import Path
 from .desired import default_spec_path, load_spec
 from .magpie import MagpieError, checked_magpie
 from .routing import RouteGroup, group_payload, group_references, parse_group
+from .contexts import context_windows
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
@@ -89,6 +91,9 @@ def initialize(path: Path | None = None) -> Path:
     target = path or database_path()
     with connect(target) as connection:
         connection.executescript(SCHEMA)
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(groups)")}
+        if "context" not in columns:
+            connection.execute("ALTER TABLE groups ADD COLUMN context INTEGER")
     return target
 
 
@@ -114,8 +119,8 @@ def _replace_current(connection: sqlite3.Connection, groups: list[RouteGroup]) -
     for group in groups:
         reference = f"group/{group.id}"
         connection.execute(
-            "INSERT INTO groups (group_id, name, routing, stays, classifier) VALUES (?, ?, ?, ?, ?)",
-            (reference, group.name, group.routing, group.stays, group.classifier),
+            "INSERT INTO groups (group_id, name, routing, stays, classifier, context) VALUES (?, ?, ?, ?, ?, ?)",
+            (reference, group.name, group.routing, group.stays, group.classifier, group.context),
         )
         for position, member in enumerate(group.members, start=1):
             connection.execute(
@@ -135,7 +140,7 @@ def sync_observation(path: Path | None = None, spec_path: Path | None = None) ->
     spec = spec_path or default_spec_path()
     if not spec.is_file():
         raise MagpieError(f"找不到路由规范：{spec}")
-    load_spec(spec)
+    desired = load_spec(spec)
     providers = checked_magpie(["providers"])
     groups_output = checked_magpie(["groups"])
     references = group_references(groups_output)
@@ -143,6 +148,12 @@ def sync_observation(path: Path | None = None, spec_path: Path | None = None) ->
         raise MagpieError("未找到路由组，或组清单格式无法识别。")
     details = {reference: checked_magpie(["group", reference[6:]]) for reference in references}
     parsed = [parse_group(reference, details[reference]) for reference in references]
+    if any(group.context is not None for group in desired.groups):
+        windows = context_windows()
+        missing = set(references) - windows.keys()
+        if missing:
+            raise MagpieError(f"模型元数据缺少组上下文：{', '.join(sorted(missing))}")
+        parsed = [replace(group, context=windows[f"group/{group.id}"]) for group in parsed]
     completeness = catalog_completeness(providers)
     raw = "\n".join([providers, groups_output, *details.values()])
     now = datetime.now(timezone.utc).isoformat()

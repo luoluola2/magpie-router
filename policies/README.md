@@ -9,10 +9,12 @@
 - 新模型先进入只读候选评估；暴露模型、增删供应商、变更账号和密钥需要独立授权。
 - 每次变更限于一个路由组，必须有实时基线、期望结果与回滚计划。
 
-具体 Policy 在产生真实需求后添加。当前 CLI 只执行显式的成员顺序计划，不会读取本目录后自行优化。
+具体 Policy 在产生真实需求后添加。CLI 可执行显式的成员顺序计划，也可通过 `route apply --yes` 应用本目录的完整路由规范；不会自行推断并优化模型能力排名。
 
 供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。 固定订阅与按量现金成本见 `cost-model.md`。 路由调度总表见 `routing-overview.md`，每次套餐、模型、候选或路由变更同步维护。
 
 当前期望路由见 `routing.json`，版本为 v2。应用前用 `python -m magpie_router route diff` 查看差异；`group/sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
 
 统一兜底是 `group/fallback`：只能包含具体模型，各二级任务组末位引用，Work 不直连。先应用兜底组再应用任务组；配置和成本说明见 `routing-overview.md`。
+
+公布上下文与实现能力下限分别维护：`context` 表示客户端可见容量；Implement 的主力准入目标以 DeepSeek V4.1 Flash:max 的实现能力为基准，不由窗口大小推导。跨供应商 Fallback 仍属于允许降级的恢复路径。

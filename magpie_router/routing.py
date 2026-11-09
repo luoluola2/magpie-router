@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .magpie import MagpieError, checked_magpie
+from .contexts import context_windows
 
 PLAN_VERSION = 1
 GROUP_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -47,6 +48,7 @@ class RouteGroup:
     stays: str = ""
     rules: tuple[Rule, ...] = ()
     classifier: str = ""
+    context: int | None = None
 
 
 @dataclass(frozen=True)
@@ -224,14 +226,21 @@ def group_payload(group: RouteGroup) -> dict:
         "routing": group.routing,
         "stays": group.stays,
         "classifier": group.classifier,
+        "context": group.context,
         "members": [member.id for member in group.members],
         "rules": [{"target": rule.target, "conditions": dict(rule.conditions)} for rule in group.rules],
     }
 
 
-def read_group(reference: str) -> RouteGroup:
-    """通过 magpie 读取一个路由组的最新状态。"""
-    return parse_group(reference, checked_magpie(["group", _group_id(reference)]))
+def read_group(reference: str, *, include_context: bool = False) -> RouteGroup:
+    """读取组配置；需要容量验证时补充网关元数据，缺失时明确失败。"""
+    group = parse_group(reference, checked_magpie(["group", _group_id(reference)]))
+    if include_context:
+        windows = context_windows()
+        if reference not in windows:
+            raise MagpieError(f"模型元数据缺少 {reference}，无法验证上下文。")
+        group = replace(group, context=windows[reference])
+    return group
 
 
 def group_references(output: str) -> list[str]:

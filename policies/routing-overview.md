@@ -3,6 +3,7 @@
 本表是个人路由的长期维护入口，用于记录**渠道订阅差异、模型能力差异、任务分配和候选变更**。当前目标是 `policies/routing.json` 的 v2：十二组，按 Workload 分流，并把昂贵 SOTA 限制在手动入口。
 magpie 是实际路由的事实来源；本表用于人读和决策，`policies/routing.json` 是应用接口的期望配置。二者不一致时先查明原因，不静默覆盖。
 
+
 **资料基线**：2026-11-09（Asia/Singapore）。除明确标为“目标”的内容外，参数来自本机 magpie 的 `model spec`、`model price`、`provider`、`groups` 输出；尚未针对真实任务做模型对照。价格为 magpie 对对应供应商路径的展示价或参考价，不必然等于订阅成本。
 
 ## 一、总原则
@@ -33,16 +34,16 @@ magpie 是实际路由的事实来源；本表用于人读和决策，`policies/
 
 | 当前路径 | 计费类别 | 上下文 / 最大输出 | 视觉 | 推理档位 | 当前主要用途与注意事项 |
 | --- | --- | --- | --- | --- | --- |
-| `workbuddy/hy4free` | 免费/赠费待逐项核实 | 960k / 64k | 支持 | high | 当前 Implement 与 Light 首选；真实复杂编码能力未验证 |
+| `workbuddy/hy4free` | 免费路径 | 960k / 64k | 支持 | high | Light 与 Fallback 首选；不再作为 Implement 直接主力 |
 | `workbuddy/deepseek-v4.1-flash` | 赠费/免费待核实 | 1M / 128k | 支持 | none、low、high、max | Tests、Light、Compact、Long 候选 |
 | `opencode-go/deepseek-v4.1-flash` | 双订阅密钥 | 1M / 384k | 支持 | low、high、max | 与 WorkBuddy 路径能力相近，可共享故障转移但不共享额度 |
 | `opencode-go/claude-haiku-5-5` | 双订阅密钥 | 1M / 128k | 支持 | low 至 max | 适合分类、轻量测试与视觉候选；注意长输入价格档位 |
-| `opencode-go/kimi-k3.1-pro` | 双订阅密钥 | 1M / 128k | 支持 | low、high、max | 当前架构首选与实现第二；可优先利用两个订阅窗口 |
+| `opencode-go/kimi-k3.1-pro` | 双订阅密钥 | 1,048,576 / 131,072 | 支持 | low、high、max | 架构、实现和评审的长请求候选；可利用两个订阅窗口 |
 | `codex/gpt-6.1-sol` | Plus 共享窗口 | 500k / 128k | 支持 | low 至 ultra | 当前 Review 首选；架构和复杂编码候选，注意共享周/五小时额度 |
 | `codex/gpt-6.1-terra` | Plus 共享窗口 | 500k / 128k | 支持 | low 至 ultra | Implement 候选；可作为 Vision 优先候选的调研起点 |
 | `codex/gpt-6-astra` | Plus 共享窗口 | 272k / 128k | 支持 | low 至 ultra | 可调研复杂推理；短于其他 Codex 路径，不适合当前长请求主链 |
 | `grok/grok-4.7` | Pro 共享周窗口 | 256k / 256k | 支持 | low 至 xhigh | **当前未暴露**，Architect/Review/Tests 的引用会被跳过 |
-| `grok/grok-4.7@500k` | Pro 共享周窗口 | 500k / 未知 | 支持 | low 至 xhigh | 当前唯一暴露 Grok 路径，在 Implement 后备 |
+| `grok/grok-4.7@500k` | Pro 共享周窗口 | 500k / 未知 | 支持 | low 至 xhigh | 架构、评审及 Fallback 后备，不再作为 Implement 直接主力 |
 | `app-yylx-io-10275/claude-opus-5-5` | 按量 API | 1M / 128k | 支持 | low 至 max | 现金成本见 `cost-model.md`；当前仍在部分路由中，目标是仅明确指定时使用 |
 | `deepseek/deepseek-flash` | 官方 API | 1M / 384k | 支持 | none、low、high、max | Light/Compact 后备；不建议持续作为低成本分类器 |
 | OpenRouter / SiliconFlow 候选 | 免费或按量，逐路径核实 | 逐路径核实 | 逐路径核实 | 逐路径核实 | OpenRouter 四个指定免费模型进入 Fallback；SiliconFlow 价格未知，暂不加入 |
@@ -77,7 +78,7 @@ Fallback 使用 `routing=order`、`stays=turn`，按下表顺序执行，不引�
 | Work | 顶层任务意图与输入能力分发；默认轻量 | 子组间不互相替代能力；分类器独立，不随 Light 用户任务链变化 |
 | Vision | 纯识图、OCR、图表和截图理解 | 初始调研 Terra、Claude Opus、Kimi、Hy4 等；以视觉适配为前提，不默认进架构 |
 | Architect | 架构设计、跨模块方案、复杂技术取舍 | 能力优先，并只在合格的免费、赠费和已购订阅路径中选择 |
-| Implement | 功能、缺陷和必要测试 | 能力优先的订阅编码链，Hy4 后备；长请求在组内选足够上下文的路径 |
+| Implement | 功能、缺陷和必要测试 | Terra → Sol → Kimi → WB Flash:max → Go Flash:max → Fallback；基准为 Flash:max 的实现能力，跨供应商兜底允许降级 |
 | Review | 评审方案、代码、PR 和迁移计划 | 保留独立首选与验证视角；避免与 Architect 完全同序，必要时利用不同订阅 |
 | Tests | 常规单测、测试配置、批量测试修复 | 独立轻量/常规任务；测试架构走 Architect，复杂缺陷定位走 Implement |
 | Long | 未分类的超长请求后备 | 不再抢所有长架构/实现/评审请求；优先保留可接受长度与能力的跨供应商候选 |
@@ -116,6 +117,26 @@ v2 已建立 Vision、Classify 和 SOTA 三组。Work 使用 Classify 分类，�
 v2 离线验证了截图实现、纯 OCR、历史图片后继续编码、长架构、常规测试、xhigh 实现、分类失败和免费兜底耗尽的规则表达；尚未实际调用模型验证视觉质量、延迟、缓存或额度消耗。
 
 ## 五、同档动态分配与浪费控制
+
+### 上下文策略与 Implement 能力下限（2026-11-09）
+
+以下是以质量、兜底可用性、压缩损失和窗口消耗为取舍的初始策略，不是经真实负载证明的帕累托最优解。公布窗口不会主动填满上下文，也不会使短窗口模型支持长请求。
+
+| 分组 | 公布上下文（tokens） | 决策理由 |
+| --- | ---: | --- |
+| Work | 1,000,000 | 避免入口原有 256k 限制使 400k/500k/850k 规则失去触发机会 |
+| Architect、Implement、Review、Vision、Long | 1,000,000 | 保留 Kimi、Qwen、Flash 等长路径；统一到多条路径支持的 1M，不依赖单一路径的 1,048,576 上限 |
+| Tests、Compact | 1,000,000 | 测试和压缩也可能接收完整长历史，较小公布容量会影响原任务 |
+| Light | 1,000,000 | Work 默认会进入 Light，200k 规则可改选 Qwen/GLM；避免直接将 Light 限到 256k 后产生中长请求缺口 |
+| Fallback | 1,000,000 | 保留免费 Nemotron 与订阅 Qwen 的长请求恢复机会；256k/262k/272k 成员不构成全长兜底保证 |
+| Classify | 256,000 | 分类职责采用保守窗口；分类器实际输入组织和失败后的规则行为仍需真实场景观察 |
+| SOTA | 272,000 | 优先确保 Astra 可承接；避免仅因上下文过长转入付费 Opus，明确需要更长时单独选择该路径 |
+
+组的公布值通过本机 `/v1/models` 验证；模型路径参数通过 `magpie model spec` 验证。输入、系统提示、工具结果、图片及输出预留共同决定实际可用长度；未做百万 token 或超限故障转移实测，不能保证 magpie 会跳过所有容量不足的候选。客户端可能缓存模型参数，新会话或刷新后才使用新值。客户端选择 Work 时，主要依据 Work 的公布值规划；子组公布值不能被当成嵌套路由中独立、已验证的硬性输入限制。
+
+**Implement 的能力基准是 DeepSeek V4.1 Flash `max`，不是它的上下文大小。** 直接主力链保留 Terra、Sol、Kimi 作为既有待验证候选，增加 WorkBuddy Flash:max 和 Go Flash:max 作为明确基准路径。GLM Flash、Grok 和 Hy4 不再作为直接主力，避免把未经比较的路径自动认定为达标；跨供应商 Fallback 仍可能降级到这些模型。保留 Fallback 是对原先末位兜底策略的延续，不代表下限约束覆盖所有故障恢复路径。若要求任何情况下都不得低于基准，需要另行去掉该组的普通 Fallback。
+
+模型能力不存在可直接读取的统一大小关系；Terra、Sol、Kimi 是否在具体实现任务上达到该基准，仍需同任务比较。这里记录主力准入目标和明确推理档位，不声称已完成质量验证。两个 Flash 路径固定为 `:max`，不以请求默认的 high 替代基准档位；不新增官方按量 API。
 
 | 检查点 | 判断 | 采用方式 |
 | --- | --- | --- |
@@ -162,3 +183,4 @@ v2 离线验证了截图实现、纯 OCR、历史图片后继续编码、长架�
 | 2026-11-09 | 增加 group/openrouter-free 作为 Work 最后兜底 | 四个零价格、支持工具且上下文至少 256k 的模型；免费请求有每日限制 |
 | 2026-11-09 | 以跨供应商 Fallback 替代 OpenRouter Free | Hy4 免费路径首位，追加免费及已购订阅候选；七个二级组末位引用，移除 Work 直连和旧组 |
 | 2026-11-09 | 建立 v2 任务规则、Vision/Classify 与手动 SOTA | 组合条件及多目标规则经临时组验证；自动链移除 Astra、Opus 和官方按量 API；真实模型调用未测 |
+| 2026-11-09 | 应用十二组公布上下文和 Implement Flash:max 基准 | 八组更新、四组保持；元数据及 SQLite 十二组一致，route diff 全部 OK，audit 零发现，31 项离线测试通过；未调用真实模型验证能力或容量 |

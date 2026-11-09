@@ -29,6 +29,8 @@ python -m magpie_router route apply --yes
 
 `policies/routing.json` 是当前期望路由。`route apply --yes` 会逐组修改 magpie，并在失败时恢复该组。本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
 
+组的 `context` 使用正整数 tokens，表示向客户端公布的容量，不代表每个候选都能处理该长度。CLI 不返回这个字段，因此配置同步、diff 和应用验证会只读本地 `/v1/models` 元数据；默认地址为 `http://127.0.0.1:3425/v1/models`，可通过 `MAGPIE_MODELS_URL` 覆盖。此接口若需要认证，本实现明确失败，不读取密钥文件或自动创建凭据。回滚保存并恢复有效公布容量，不能恢复 CLI 未提供的原始 `smallest`/自动继承表达。
+
 `plan` 和 `apply` 在成员未暴露或路由组状态已变化时拒绝继续，不会顺带暴露模型或覆盖其他改动。`apply` 成功后把实际结果和回滚计划写入 `.local/`。
 
 ## 长期运行方式
