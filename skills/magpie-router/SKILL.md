@@ -5,13 +5,13 @@ description: 盘点、诊断并长期维护 magpie 的多供应商模型路由�
 
 # 维护 magpie 路由
 
-把 magpie 当作事实来源，把每次优化当作有基线的受控变更。先读仓库的 `GLOSSARY.md` 和 `policies/README.md`。
+把 magpie 当作事实来源，把每次优化当作有基线的受控变更。先读仓库的 `GLOSSARY.md`、`policies/README.md` 和 `policies/providers.md`。
 
 ## 工作流程
 
 1. 在仓库根目录运行 `python -m magpie_router inspect`，确认 gateway、供应商、Agent、组和模型均可读取。
 2. 运行 `python -m magpie_router audit`，逐一核对报告与实时组详情；解析失败时停止变更。
-3. 只在与任务相关时读取用量或配额，并记录采集时间。将 Workload、能力需求和跨时间 Evidence 与当前问题关联，避免按一次读数排名模型。
+3. 只在与任务相关时读取用量、配额或模型价格，并记录采集时间。将 Workload、能力需求和跨时间 Evidence 与当前问题关联，避免按一次读数排名模型；评估 WorkBuddy 时逐模型区分免费与赠费，评估 OpenCode Go 时区分两个密钥。
 4. 给出建议及不修改的备选方案，说明候选顺序、收益、风险与仍需验证的假设。
 5. 用 `plan set-order` 生成单组 Change Set。计划只接受实时状态中已暴露的成员，不顺带扩大供应商或模型权限。
 6. 向用户展示计划文件中的当前状态、目标状态、原因和回滚方式，取得本次应用批准。
