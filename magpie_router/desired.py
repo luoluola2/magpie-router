@@ -1,4 +1,4 @@
-"""读取 v2 规范，验证引用和手动 SOTA 隔离，按依赖比较配置。"""
+"""读取路由规范，验证引用和手动 SOTA 隔离，按依赖比较配置。"""
 
 from __future__ import annotations
 

@@ -1,188 +1,56 @@
 # 路由调度总表
 
-本表是个人路由的长期维护入口，用于记录**渠道订阅差异、模型能力差异、任务分配和候选变更**。当前目标是 `policies/routing.json` 的 v2：十二组，按 Workload 分流，并把昂贵 SOTA 限制在手动入口。
-magpie 是实际路由的事实来源；本表用于人读和决策，`policies/routing.json` 是应用接口的期望配置。二者不一致时先查明原因，不静默覆盖。
+本表记录长期策略，`routing.json` 是期望配置，magpie 是运行事实来源；运行 `route diff` 核对两者。子代理职责见 `subagents/README.md`，渠道和价格依据分别见 `providers.md`、`cost-model.md`。
 
-通用子代理的职责、委派契约及客户端部署状态见 `subagents/README.md`；角色定义默认任务入口，实际是否绑定以部署状态为准。本表维护入口之后的路由策略。
+2026-11-09 迁移进行中：资源池、Classify、Architect、Implement 和 Review 已回读成功；Tests 回读不一致后已恢复原组并停止，后续组尚未迁移。下表是 v3 目标，不能视作全部生效。
 
-**资料基线**：2026-11-09（Asia/Singapore）。除明确标为“目标”的内容外，参数来自本机 magpie 的 `model spec`、`model price`、`provider`、`groups` 输出；尚未针对真实任务做模型对照。价格为 magpie 对对应供应商路径的展示价或参考价，不必然等于订阅成本。
+## 四层结构
 
-## 一、总原则
+`Work → 任务入口 → 资源池 → 具体模型`。配置引用仅跨相邻层，图片、长度和推理要求由 magpie 处理；复用模型路径不会产生新额度。Classify 是 Work 的辅助分类入口；SOTA 仅供手动选择，自动路径不通向它。
 
-1. **任务意图优先于输入模态。** 图片要求视觉能力，不等于架构任务。目标是新增 Vision 承接纯识图、OCR、图表和截图理解；“按截图实现页面”仍应进入 Implement。
-2. **能力档位优先，订阅节奏在同档候选中调节。** 不为了消耗额度降低架构或复杂实现质量，也不因固定顺序让已购订阅闲置。
-3. **共享额度不能被当作独立资源池。** Codex 各模型共享同一 Plus 账户的窗口；OpenCode Go 两个密钥共享模型选择但各自有窗口，不能只看某一密钥。
-4. **订阅与 API 分开比较。** 已支付订阅只消耗窗口，不按参考 API 单价重复计费；按量 API 才产生增量现金成本。口径见 `cost-model.md`。
-5. **长上下文是任务组的容量约束。** 目标是架构、实现、评审等意图优先，Long 只兜底未分类长请求，避免 500k 规则覆盖所有任务差异。
-6. **参数不是任务成绩。** 模型名、上下文长度、推理档位和视觉声明只决定候选资格。真实任务效果、稳定性与缓存价值另行验证。
-
-## 二、渠道与订阅差异
-
-| 渠道 | 接入与资源语义 | 窗口、成本与共享关系 | 路由含义 |
-| --- | --- | --- | --- |
-| WorkBuddy | 免费计划，存在限免模型与赠送积分 | 各模型额度/赠费需分别读取；`free=yes` 不代表整站每个模型免费 | 适合轻量和低成本候选；免费不自动等于实现首选 |
-| OpenCode Go | 两份基础订阅，对应两个 API 密钥 | 两密钥分别观察五小时、周和月窗口；同模型可有不同重置节奏 | 同档候选可按 magpie 的 `pace`/`usage` 等策略在两个密钥间分配，避免只看其中一个 |
-| Codex | ChatGPT Plus，单一订阅账户 | 五小时与七窗口共同约束；各 GPT 路径共享账户额度，不是每模型独立一桶 | 高价值实现、评审候选；必要时给普通任务留余量，不用五小时指标替代周额度判断 |
-| Grok | Grok Pro，单一订阅账户 | 周窗口；不同模型的实际额度与上限按供应商规则，不能从 Plus 直接类推 | 同档候补和长上下文候选；当前引用与暴露状态不一致，先修复 |
-| 鱼鱼连线-A\ | 按量 API 中转 | Opus 5.5 的标价、缓存价和未确认倍率见 `cost-model.md` | 仅明确指定时使用，不作为自动故障转移 |
-| DeepSeek | 官方按量 API | 高峰、非高峰和缓存价格见 cost-model.md | 仅明确指定时使用 |
-| OpenRouter | 多模型聚合 API | 免费模型、付费模型与账户余额分开；各免费路径仍共享平台限制 | 四个已核实零价格的具体模型进入跨供应商 Fallback，不能把所有 `:free` 当同一质量 |
-| SiliconFlow | 开源模型聚合 API | 有免费模型和赠费可能；余额查询接口当前不可用，需人工页面核对 | 补充不同开源路径与故障转移，先评估再进入核心组 |
-
-## 三、模型与路径能力表
-
-“路径参数”是本机 magpie 在该供应商下的配置，**不能用模型官网参数覆盖它**。上下文单位均为 tokens。质量与速度尚未实测，不设置总分。
-
-| 当前路径 | 计费类别 | 上下文 / 最大输出 | 视觉 | 推理档位 | 当前主要用途与注意事项 |
-| --- | --- | --- | --- | --- | --- |
-| `workbuddy/hy4free` | 免费路径 | 960k / 64k | 支持 | high | Light 与 Fallback 首选；不再作为 Implement 直接主力 |
-| `workbuddy/deepseek-v4.1-flash` | 赠费/免费待核实 | 1M / 128k | 支持 | none、low、high、max | Tests、Light、Compact、Long 候选 |
-| `opencode-go/deepseek-v4.1-flash` | 双订阅密钥 | 1M / 384k | 支持 | low、high、max | 与 WorkBuddy 路径能力相近，可共享故障转移但不共享额度 |
-| `opencode-go/claude-haiku-5-5` | 双订阅密钥 | 1M / 128k | 支持 | low 至 max | 适合分类、轻量测试与视觉候选；注意长输入价格档位 |
-| `opencode-go/kimi-k3.1-pro` | 双订阅密钥 | 1,048,576 / 131,072 | 支持 | low、high、max | 架构、实现和评审的长请求候选；可利用两个订阅窗口 |
-| `codex/gpt-6.1-sol` | Plus 共享窗口 | 500k / 128k | 支持 | low 至 ultra | 当前 Review 首选；架构和复杂编码候选，注意共享周/五小时额度 |
-| `codex/gpt-6.1-terra` | Plus 共享窗口 | 500k / 128k | 支持 | low 至 ultra | Implement 候选；可作为 Vision 优先候选的调研起点 |
-| `codex/gpt-6-astra` | Plus 共享窗口 | 272k / 128k | 支持 | low 至 ultra | 可调研复杂推理；短于其他 Codex 路径，不适合当前长请求主链 |
-| `grok/grok-4.7` | Pro 共享周窗口 | 256k / 256k | 支持 | low 至 xhigh | **当前未暴露**，Architect/Review/Tests 的引用会被跳过 |
-| `grok/grok-4.7@500k` | Pro 共享周窗口 | 500k / 未知 | 支持 | low 至 xhigh | 架构、评审及 Fallback 后备，不再作为 Implement 直接主力 |
-| `app-yylx-io-10275/claude-opus-5-5` | 按量 API | 1M / 128k | 支持 | low 至 max | 现金成本见 `cost-model.md`；当前仍在部分路由中，目标是仅明确指定时使用 |
-| `deepseek/deepseek-flash` | 官方 API | 1M / 384k | 支持 | none、low、high、max | Light/Compact 后备；不建议持续作为低成本分类器 |
-| OpenRouter / SiliconFlow 候选 | 免费或按量，逐路径核实 | 逐路径核实 | 逐路径核实 | 逐路径核实 | OpenRouter 四个指定免费模型进入 Fallback；SiliconFlow 价格未知，暂不加入 |
-
-### 统一兜底：`group/fallback`
-
-拓扑为 `Work → 二级任务组 → Fallback → 具体模型`。Work 不直接把 Fallback 作为成员、规则目标或分类器；Architect、Implement、Review、Tests、Light、Compact、Long 的最后一个成员均为 `group/fallback`。
-
-Fallback 使用 `routing=order`、`stays=turn`，按下表顺序执行，不引用任何任务组，避免反向循环。它是跨供应商的通用恢复路径，不保证与每个任务组的首选模型质量等价。
-
-| 顺序 | 具体路径 | 成本依据 |
+| 入口 | 默认资源池顺序 | 额外规则 |
 | --- | --- | --- |
-| 1 | `workbuddy/hy4free` | 本机 `model price` 明确输入、输出及缓存为零 |
-| 2 | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | 本机价格为零 |
-| 3 | `openrouter/google/gemma-4-26b-a4b-it:free` | 本机价格为零 |
-| 4 | `openrouter/cohere/north-mini-code:free` | 本机价格为零 |
-| 5 | `openrouter/nvidia/nemotron-3.5-lightning:free` | 本机价格为零 |
-| 6 | `opencode-go/qwen3.8-flash` | 已购 Go 订阅路径，仍受密钥和模型额度约束 |
-| 7 | `codex/gpt-6-luna` | 已购 Plus 路径，与同账户其他模型共享额度 |
-| 8 | `grok/grok-4.7@500k` | 已购 Pro 路径，与同账户其他模型共享额度 |
+| Architect | reason → long → fallback | 400k 起优先 long |
+| Implement | build → build-long → build-credit → fallback | 400k 起优先 build-long |
+| Review | reason → long → fallback | 400k 起优先 long |
+| Tests | tests → long → fallback | 无 |
+| Vision | vision → long → fallback | 400k 起优先 long |
+| Light | free → economy → long → fallback | 200k 起优先 economy |
+| Compact | compact → long → fallback | 无 |
+| Long | long → fallback | 无 |
+| Classify | classify → fallback | 无 |
+| SOTA | sota | 手动选择，不接普通 Fallback |
 
-各候选能力和上下文不同；配置回读、可用标记及无环检查不等于真实请求的图像兼容、工具调用或长上下文验证。免费限额也不能因增加四个 OpenRouter 模型而视作四份独立额度。
+Work 的顺序是压缩、评审、架构、纯测试、实现、视觉理解、图片、500k 长请求，默认 Light。意图分类失败时，图片和长度规则仍可匹配；截图实现仍属于 Implement。
 
-本次只迁移兜底拓扑，各二级组原有主链和规则保持。原有鱼鱼及 DeepSeek 官方路径仍在部分主链中，是否移除按既有成本政策另行处理；它们不进入 Fallback。迁移前快照保存于未跟踪的 `.local/fallback-before-*.json`，每组应用结果写入本地 SQLite。
+## 资源池与成本
 
-## 四、目标任务编排
-
-以下为经讨论确定的**目标状态**，当前尚未全部应用。
-
-| 任务组 | 路由职责 | 同档候选的订阅节奏与降级原则 |
+| 资源池 | 成员及调度 | 成本和用途 |
 | --- | --- | --- |
-| Work | 顶层任务意图与输入能力分发；默认轻量 | 子组间不互相替代能力；分类器独立，不随 Light 用户任务链变化 |
-| Vision | 纯识图、OCR、图表和截图理解 | 初始调研 Terra、Claude Opus、Kimi、Hy4 等；以视觉适配为前提，不默认进架构 |
-| Architect | 架构设计、跨模块方案、复杂技术取舍 | 能力优先，并只在合格的免费、赠费和已购订阅路径中选择 |
-| Implement | 功能、缺陷和必要测试 | Terra → Sol → Kimi → WB Flash:max → Go Flash:max → Fallback；基准为 Flash:max 的实现能力，跨供应商兜底允许降级 |
-| Review | 评审方案、代码、PR 和迁移计划 | 保留独立首选与验证视角；避免与 Architect 完全同序，必要时利用不同订阅 |
-| Tests | 常规单测、测试配置、批量测试修复 | 独立轻量/常规任务；测试架构走 Architect，复杂缺陷定位走 Implement |
-| Long | 未分类的超长请求后备 | 不再抢所有长架构/实现/评审请求；优先保留可接受长度与能力的跨供应商候选 |
-| Light | 简单修改、短问答、未分类轻任务 | 免费与订阅低档位优先；不为消耗周额度把它升级为复杂任务 |
-| Compact | 单次压缩 | `stays=turn`，低推理、低成本；无需长期会话粘性 |
-| Classify | 意图分类 | 单独低推理组，优先 Haiku 等适合分类的路径；不再复用 Light 整组 |
-| Fallback | 当前七个二级组的末位通用兜底 | 跨供应商免费及已购订阅模型，不由 Work 直接调用；未来新增任务组同样在末尾引用 |
+| reason | Sol、Kimi、Grok；smart / auto | 架构和评审的订阅候选 |
+| build | Terra、Sol、Kimi、Go Flash:max；smart / auto | 实现主力；Flash:max 是能力目标，其他成员尚无对照证明 |
+| build-long | Kimi、Go Flash:max；smart / auto | 长实现优先 |
+| build-credit | WorkBuddy Flash:max；order / turn | 积分和赠费后备，不能认定免费 |
+| economy | Qwen、GLM、Haiku、Luna，均 low；smart / turn | 已购订阅轻任务 |
+| tests | Go Flash:low、GLM:high、Haiku:low、Qwen:low；smart / turn | 常规测试 |
+| compact | WorkBuddy Flash、Go Flash、Qwen、Haiku，均 low；order / turn | 压缩 |
+| classify | WorkBuddy Flash:none、Haiku:low、Luna:low；order / turn | 分类 |
+| vision | Terra、Kimi、Qwen；smart / auto | 声明支持视觉的订阅路径 |
+| long | Kimi、Qwen、Go Flash；smart / auto | 长请求 |
+| free | Hy4 和四个 OpenRouter 免费模型；order / turn | 轻任务免费优先，具体 ID 见规范 |
+| fallback | free 的成员、Qwen、Luna、Grok；order / turn | 跨供应商恢复，允许能力降级 |
+| sota | Astra → 鱼鱼 Opus；order / turn | 手动；前者消耗 Plus 窗口，后者产生按量现金成本 |
 
-### 目标规则顺序
+`smart` 以 magpie 的订阅窗口规则调度，并不证明候选质量等价。`auto` 的缓存收益及窗口利用收益尚未实测。订阅模型共享对应账户窗口；OpenCode Go 两个密钥各有资源窗口。WorkBuddy 的赠费和模型价格按实际路径确认，不以 Free plan 推断全部免费。
 
-1. Compact：压缩请求。
-2. Architect、Implement、Review、Tests 等明确任务意图。
-3. 纯视觉理解的意图。
-4. 对未能识别的带图请求使用 Vision；magpie 的 `images` 包含历史图片，不能继续把它作为 Architect 的无条件优先规则。
-5. 对未能识别的长请求使用 Long。
-6. 未命中进入 Light。
+## 上下文与验证边界
 
-实现时需核对 magpie 的组合条件与首条匹配语义，避免“意图优先”只停留在表格。目标候选的实际顺序应根据下表和窗口调节，而非固定照抄当前配置。
+Work 和八个普通任务入口公布 1M，Classify 为 256k、SOTA 为 272k。资源池的公布容量见 `routing.json`，它是入口提示，不保证每个成员均可处理同等长度。400k、200k 是候选偏好切换阈值。
 
-### v2 规则与验证状态
+用户已实测：会话超过某模型上下文时，magpie 跳过该模型并尝试后续可容纳的候选。本项目没有独立验证图片过滤、输出预留和粘性行为，也没有实测模型质量或额度优化；维护时不要把上述事项写成已验证结论。
 
-v2 已建立 Vision、Classify 和 SOTA 三组。Work 使用 Classify 分类，任务意图先于图片及长度条件；顶层没有命中时默认进入 Light。SOTA 是独立的手动入口，成员为 Astra 与鱼鱼 Opus，不出现在任何自动路由的成员、规则或分类器中；Fallback 也不引用它。
+2026-11-09 本机 `model price` 将 Hy4 和四条指定 OpenRouter 路径的输入、输出及缓存价格显示为零；供应商限制和价格可能改变。模型能力参数以实际路径的 `magpie model spec` 为准，价格与套餐变更按 `cost-model.md` 核查。
 
-| 规则位置 | 条件 | 选择目标 | 理由 | 验证状态 |
-| --- | --- | --- | --- | --- |
-| Work | 压缩、五类任务意图 | 对应任务组 | 让 Work 只管任务类型 | 已做离线规则与回读检查 |
-| Work | 图片未匹配任务意图、或请求 ≥500k | Vision、Long | 纯识图与未分类长请求兜底 | 已做离线规则检查 |
-| Architect、Implement、Review | ≥400k、图片或 xhigh | 上下文、视觉或推理更合适的成员 | 用确定性条件替代子组重复分类 | 已做离线规则检查 |
-| Tests、Light、Long、Fallback | 图片、长度、推理档位及其 AND 组合 | 更适配的单个或多个候选 | 排除能力不合适或不经济的首选 | 已做离线规则检查 |
-| Compact、Classify、SOTA | 无 | 默认成员顺序 | 职责明确，不增加无收益规则 | 已确认配置 |
+## 维护
 
-400k、200k、500k、850k 是候选偏好切换阈值，不是对模型剩余容量或真实任务成功的承诺；实际上下文限制与输出预留仍由 magpie 和供应商处理。`effort=xhigh` 对应显式高推理请求；当前 Agent 常态为 `high`，不会把普通请求误判为升级条件。
-
-编码类任务组保持会话粘性，Vision、Light、Compact、Classify、Fallback 和 SOTA 按轮次重新选路。规则在下一轮匹配时可覆盖粘性，同一轮工具调用保持路径连续。第一版不把额度或重置时间伪装成规则条件；资源节奏仍由 magpie 的路由机制处理。
-
-v2 离线验证了截图实现、纯 OCR、历史图片后继续编码、长架构、常规测试、xhigh 实现、分类失败和免费兜底耗尽的规则表达；尚未实际调用模型验证视觉质量、延迟、缓存或额度消耗。
-
-## 五、同档动态分配与浪费控制
-
-### 上下文策略与 Implement 能力下限（2026-11-09）
-
-以下是以质量、兜底可用性、压缩损失和窗口消耗为取舍的初始策略，不是经真实负载证明的帕累托最优解。公布窗口不会主动填满上下文，也不会使短窗口模型支持长请求。
-
-| 分组 | 公布上下文（tokens） | 决策理由 |
-| --- | ---: | --- |
-| Work | 1,000,000 | 避免入口原有 256k 限制使 400k/500k/850k 规则失去触发机会 |
-| Architect、Implement、Review、Vision、Long | 1,000,000 | 保留 Kimi、Qwen、Flash 等长路径；统一到多条路径支持的 1M，不依赖单一路径的 1,048,576 上限 |
-| Tests、Compact | 1,000,000 | 测试和压缩也可能接收完整长历史，较小公布容量会影响原任务 |
-| Light | 1,000,000 | Work 默认会进入 Light，200k 规则可改选 Qwen/GLM；避免直接将 Light 限到 256k 后产生中长请求缺口 |
-| Fallback | 1,000,000 | 保留免费 Nemotron 与订阅 Qwen 的长请求恢复机会；256k/262k/272k 成员不构成全长兜底保证 |
-| Classify | 256,000 | 分类职责采用保守窗口；分类器实际输入组织和失败后的规则行为仍需真实场景观察 |
-| SOTA | 272,000 | 优先确保 Astra 可承接；避免仅因上下文过长转入付费 Opus，明确需要更长时单独选择该路径 |
-
-组的公布值通过本机 `/v1/models` 验证；模型路径参数通过 `magpie model spec` 验证。输入、系统提示、工具结果、图片及输出预留共同决定实际可用长度；未做百万 token 或超限故障转移实测，不能保证 magpie 会跳过所有容量不足的候选。客户端可能缓存模型参数，新会话或刷新后才使用新值。客户端选择 Work 时，主要依据 Work 的公布值规划；子组公布值不能被当成嵌套路由中独立、已验证的硬性输入限制。
-
-**Implement 的能力基准是 DeepSeek V4.1 Flash `max`，不是它的上下文大小。** 直接主力链保留 Terra、Sol、Kimi 作为既有待验证候选，增加 WorkBuddy Flash:max 和 Go Flash:max 作为明确基准路径。GLM Flash、Grok 和 Hy4 不再作为直接主力，避免把未经比较的路径自动认定为达标；跨供应商 Fallback 仍可能降级到这些模型。保留 Fallback 是对原先末位兜底策略的延续，不代表下限约束覆盖所有故障恢复路径。若要求任何情况下都不得低于基准，需要另行去掉该组的普通 Fallback。
-
-模型能力不存在可直接读取的统一大小关系；Terra、Sol、Kimi 是否在具体实现任务上达到该基准，仍需同任务比较。这里记录主力准入目标和明确推理档位，不声称已完成质量验证。两个 Flash 路径固定为 `:max`，不以请求默认的 high 替代基准档位；不新增官方按量 API。
-
-| 检查点 | 判断 | 采用方式 |
-| --- | --- | --- |
-| 是否同档能力 | 不能完成视觉、长度或复杂任务的路径直接排除 | 能力表与任务约束筛选 |
-| 是否同一共享资源 | Codex 多模型不能当成多份额度；OpenCode 两密钥独立观察 | 订阅窗口以 magpie 实际返回为准 |
-| 是否该使用较早重置窗口 | 周/五小时不能只凭一个百分比决定 | 在 magpie 支持处优先使用 `smart` 或 `pace`，同档订阅间再考虑 `usage` |
-| 是否值得换供应商 | 换模型可能失去缓存、上下文和会话一致性 | 保留 `stays=auto/session` 的收益，避免每轮轮换 |
-| 是否发生可避免 API 支出 | 同档订阅可用时仍自动调用按量 API | 按量 API 仅在明确指定时使用，并记录分组、时间段和缓存 |
-| 是否可能挤占关键任务 | 普通任务耗尽共享窗口 | 给关键任务保留同档订阅或可控付费后备 |
-
-**重要限制**：magpie 的 `pace` 主要按周剩余比例和距重置小时数排序，不是“周窗口 + 五小时窗口”的完整优化器；外层策略也不会自动展开并重排 `order` 子组。动态分配应放在真正可替代的候选层，不把 Work 改成 `pace` 当成万能解法。
-
-## 六、当前状态与待办
-
-| 项目 | 状态 | 下一步 |
-| --- | --- | --- |
-| 当前规范与实际路由 | v2 覆盖 Fallback、Classify、八个任务组、SOTA 和 Work，共十二组 | 逐组回读一致，`route diff` 全 OK，审计 0 项发现 |
-| 兜底拓扑 | Work 不直连，七个二级任务组末位引用 `group/fallback`；旧组已删除 | 后续新增二级组同样在末位接入，并防止反向循环 |
-| 图片分流 | 当前 `images` 直接指向 Architect | 新增 Vision，明确视觉意图和未分类带图请求的处理 |
-| 长请求 | 当前 500k 规则优先于任务意图 | 调整规则并让任务组提供足够上下文后备 |
-| Grok 引用 | Architect、Review、Tests 的普通 `grok-4.7` 未暴露 | 统一使用已暴露路径，或单独审批重新暴露普通模型 |
-| 分类器 | 当前为 `group/light` | 建立 Classify，与 Light 解耦 |
-| 能力表 | 当前以本机参数为主，未实测 | 只详查当前使用与候选；改路由前核对官网/供应商资料和 magpie 参数 |
-| 刷新方式 | 按需，不部署常驻服务 | 参数资料超过 7 天、价格超过 1 天或来源冲突时重新核对 |
-| 实测记录 | 尚无独立视觉、架构、编码对照 | 后续单独记录任务、路径、结果和日期，不写入本机会话内容 |
-
-## 七、维护流程
-
-1. **变更前**：读取本表、`providers.md`、`routing.json` 和 `GLOSSARY.md`；运行 `python -m magpie_router route diff`，对照 magpie 实际状态。
-2. **更新资料**：优先官方资料，随后本机路径参数、供应商接入限制，最后才是任务实测。记录日期与来源，不把过期结论当事实。
-3. **审查变化**：新供应商或模型先写为“候选”，核对上下文、视觉、工具、推理、价格和暴露状态，再决定是否进组。
-4. **应用路由**：只修改 `routing.json` 后运行 `route diff` 与 `route apply --yes`；不通过编辑本表假装配置已生效。
-5. **验证**：回读受影响组并运行 `audit`；图片、长上下文、复杂实现、常规测试分别验证分流与降级。
-6. **维护本表**：每次实际路由变更、套餐变化、关键参数核对或候选升降级，同步更新“维护日志”。
-7. **不要写入**：密钥、完整邮箱、会话、提示词、原始请求、原始用量或单次额度快照。
-
-## 八、维护日志
-
-| 日期（Asia/Singapore） | 变更 | 依据与影响 |
-| --- | --- | --- |
-| 2026-11-09 | 建立总表，记录当前渠道、模型参数、订阅共享关系和目标编排 | 识别图片误路由、长请求覆盖意图、Grok 未暴露及固定顺序造成的订阅闲置风险；本次不修改实际路由 |
-| 2026-11-09 | 引用成本模型，区分固定订阅与增量现金成本 | 去除未经比较的“较贵”和自动 API 兜底表述；不改变当前路由 |
-| 2026-11-09 | 增加 group/openrouter-free 作为 Work 最后兜底 | 仅使用四个已核实的零价格、支持工具且上下文至少 256k 的模型；免费额度有每日请求限制 |
-| 2026-11-09 | 增加 group/openrouter-free 作为 Work 最后兜底 | 四个零价格、支持工具且上下文至少 256k 的模型；免费请求有每日限制 |
-| 2026-11-09 | 以跨供应商 Fallback 替代 OpenRouter Free | Hy4 免费路径首位，追加免费及已购订阅候选；七个二级组末位引用，移除 Work 直连和旧组 |
-| 2026-11-09 | 建立 v2 任务规则、Vision/Classify 与手动 SOTA | 组合条件及多目标规则经临时组验证；自动链移除 Astra、Opus 和官方按量 API；真实模型调用未测 |
-| 2026-11-09 | 应用十二组公布上下文和 Implement Flash:max 基准 | 八组更新、四组保持；元数据及 SQLite 十二组一致，route diff 全部 OK，audit 零发现，31 项离线测试通过；未调用真实模型验证能力或容量 |
-| 2026-11-09 | 核对四个通用子代理的角色接入与部署状态 | 仅更新策略文档，不改实际路由；Codex 四份 TOML 的任务组绑定已回读，Grok Build 生成文件无模型字段，Claude Code 未部署；route diff 全部 OK，audit 零发现 |
+调整前核对当前配置、能力及成本依据；按依赖顺序逐组应用并回读，保留 SQLite 应用记录及 `.local/` 快照。只记录可复核的策略和证据，不提交密钥、完整会话、原始请求或个人用量。模型暴露、供应商、订阅和 Agent 默认模型须单独授权。

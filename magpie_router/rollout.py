@@ -132,7 +132,16 @@ def apply_group(
             _mutate(desired, current)
         actual = read_group(desired.id, include_context=desired.context is not None)
         if not same_configuration(actual, desired):
-            raise MagpieError(f"{desired.id} 应用后的实际状态与规范不符。")
+            fields = (
+                ("members", tuple(member.id for member in actual.members), desired.members),
+                ("routing", actual.routing, desired.routing),
+                ("stays", actual.stays, desired.stays),
+                ("classifier", actual.classifier, desired.classifier),
+                ("rules", actual.rules, desired.rules),
+                ("context", actual.context, desired.context if desired.context is not None else actual.context),
+            )
+            differences = "; ".join(f"{name}: {before!r} != {target!r}" for name, before, target in fields if before != target)
+            raise MagpieError(f"{desired.id} 应用后的实际状态与规范不符：{differences}")
     except (MagpieError, OSError, sqlite3.Error) as error:
         try:
             if current is None:

@@ -87,10 +87,9 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(groups["group/work"].context, 1000000)
         self.assertEqual(groups["group/sota"].context, 272000)
         self.assertEqual(groups["group/classify"].context, 256000)
-        implement = groups["group/implement"]
-        self.assertIn("workbuddy/deepseek-v4.1-flash:max", implement.members)
-        self.assertIn("opencode-go/deepseek-v4.1-flash:max", implement.members)
-        self.assertNotIn("workbuddy/hy4free", implement.members)
+        self.assertIn("workbuddy/deepseek-v4.1-flash:max", groups["group/pool-build-credit"].members)
+        self.assertIn("opencode-go/deepseek-v4.1-flash:max", groups["group/pool-build"].members)
+        self.assertNotIn("workbuddy/hy4free", groups["group/pool-build"].members)
         for group in groups.values():
             for rule in group.rules:
                 threshold = dict(rule.conditions).get("tokens")

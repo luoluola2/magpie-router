@@ -35,24 +35,21 @@ def route_group(group_id, members, stays="session", classifier=""):
 
 
 class SpecTests(unittest.TestCase):
-    """锁定 v2 拓扑、规则语义与昂贵模型隔离。"""
+    """锁定路由拓扑、规则语义与昂贵模型隔离。"""
 
-    def test_v2_topology_and_sota_isolation(self):
-        """十二组可拓扑排序；SOTA 与按量 API 不进入自动链。"""
+    def test_v3_topology_and_sota_isolation(self):
+        """二十四组可拓扑排序；SOTA 与按量 API 不进入自动链。"""
         spec = load_spec()
-        self.assertEqual(spec.version, "v2")
-        self.assertEqual(len(spec.groups), 12)
-        self.assertEqual([group.id for group in application_order(spec)], [
-            "group/fallback", "group/classify", "group/architect", "group/implement",
-            "group/review", "group/tests", "group/vision", "group/light",
-            "group/compact", "group/long", "group/sota", "group/work"])
+        self.assertEqual(spec.version, "v3")
+        self.assertEqual(len(spec.groups), 24)
+        self.assertEqual(application_order(spec)[-1].id, "group/work")
         groups = {group.id: group for group in spec.groups}
         self.assertEqual(groups["group/work"].classifier, "group/classify")
         self.assertNotIn("group/fallback", groups["group/work"].members)
-        self.assertEqual(groups["group/sota"].members, (
+        self.assertEqual(groups["group/pool-sota"].members, (
             "codex/gpt-6-astra", "app-yylx-io-10275/claude-opus-5-5"))
         for group in spec.groups:
-            if group.id in {"group/work", "group/sota", "group/fallback"}:
+            if group.layer != "task" or group.id == "group/sota":
                 continue
             self.assertNotIn("group/sota", " ".join(group.members))
             self.assertNotIn("astra", " ".join(group.members))
@@ -78,14 +75,14 @@ class SpecTests(unittest.TestCase):
         spec = load_spec()
         groups = {group.id: group for group in spec.groups}
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v2", spec.groups[:-1] + (
+            validate_spec(DesiredSpec("v3", spec.groups[:-1] + (
                 replace(groups["group/work"], members=("group/work",)),)))
         invalid = replace(groups["group/light"], members=groups["group/light"].members[:-1])
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v2", tuple(invalid if group.id == invalid.id else group for group in spec.groups)))
+            validate_spec(DesiredSpec("v3", tuple(invalid if group.id == invalid.id else group for group in spec.groups)))
         invalid_work = replace(groups["group/work"], members=("group/sota",) + groups["group/work"].members)
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v2", spec.groups[:-1] + (invalid_work,)))
+            validate_spec(DesiredSpec("v3", spec.groups[:-1] + (invalid_work,)))
 
     def test_parse_combined_multi_target_rule(self):
         """CLI 规则可完整回读 AND 条件和有序多目标。"""
@@ -209,7 +206,7 @@ class ApplyTests(unittest.TestCase):
             route_group("architect", ["a/a"]),
         ]
         read_group.side_effect = reads
-        with self.assertRaises(MagpieError):
+        with self.assertRaisesRegex(MagpieError, "members"):
             apply_group(self.desired(["b/b"]), self.db)
         self.assertEqual(checked.call_args_list[0].args[0][3], "models=b/b")
         self.assertEqual(checked.call_args_list[1].args[0][3], "models=a/a")
