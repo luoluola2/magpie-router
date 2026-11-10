@@ -1,5 +1,7 @@
 # 路由调度总表
 
+**待同步：** 本文及 `routing.json` 中的旧组 ID、成员和规则尚未与实时配置对齐，不能用于应用配置。2026-11-10 的免费模型实际变更与维护步骤见 `free-models.md`；实时配置以 magpie CLI 为准。
+
 本表记录长期策略，`routing.json` 是期望配置，magpie 是运行事实来源；运行 `route diff` 核对两者。子代理职责见 `subagents/README.md`，渠道和价格依据分别见 `providers.md`、`cost-model.md`。
 
 2026-11-09 已完成各任务入口的分层迁移，并通过 CLI 回读确认成员；上下文容量以实时元数据为准，差异通过 `route diff` 报告。

@@ -10,6 +10,8 @@
 | `grok` | Grok Pro 订阅 | 订阅窗口资源；长上下文等能力必须与实时暴露状态一起验证，不据套餐名称推断服务保证 |
 | `app-yylx-io-10275`（鱼鱼连线-A\，鱼鱼快跑） | Claude 按量 API 中转 | 价格、缓存和未确认的账户倍率见 `cost-model.md`；仅明确指定时使用 |
 | `deepseek` | DeepSeek 官方按量 API | 按 `cost-model.md` 的高峰、非高峰和缓存价格计算；仅明确指定时使用 |
+| `opencode-zen-free` | 用户确认当前为免费模型渠道 | 限免和目录可能变化；具体路径及规格见 `free-models.md` |
+| `our-free-model` | 用户确认当前为免费模型渠道 | 按各模型路径核实能力和服务情况；具体记录见 `free-models.md` |
 
 ## 证据规则
 
