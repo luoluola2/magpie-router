@@ -7,7 +7,7 @@ from contextlib import closing
 from pathlib import Path
 from dataclasses import replace
 
-from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, load_spec, validate_spec
+from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, diff_lines, load_spec, validate_spec
 from magpie_router.magpie import MagpieError
 from magpie_router.store import _replace_current, initialize
 from magpie_router.routing import RouteGroup, Member, Rule, topology_findings
@@ -64,6 +64,20 @@ class LayerTests(unittest.TestCase):
         self.assertFalse(any(rule.target == "group/task-implement-strong" for rule in work.rules))
         self.assertFalse(any("tokens" in dict(rule.conditions) for group in spec.groups for rule in group.rules))
         self.assertNotIn("group/task-sota", work.members)
+
+    def test_retired_and_unknown_groups_remain_distinct(self):
+        """已知退役组阻止完整匹配，未知组只报告且不能推断应删除。"""
+        spec = load_spec()
+        actual = [
+            RouteGroup("task-long", "Long", (Member("group/pool-long", True, ""),), "order", "turn"),
+            RouteGroup("personal", "Personal", (Member("vendor/model", True, ""),), "order", "turn"),
+        ]
+        lines = diff_lines(actual, spec)
+        self.assertIn("RETIRED group/task-long", lines)
+        self.assertIn("UNKNOWN group/personal", lines)
+        findings = topology_findings(actual)
+        self.assertTrue(any(item.group == "group/task-long" and item.severity == "error" for item in findings))
+        self.assertTrue(any(item.group == "group/personal" and item.severity == "warning" for item in findings))
 
     def test_forbidden_references(self):
         """跨层、同层、缺失兜底和手动模型不能进入自动链。"""

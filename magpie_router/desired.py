@@ -12,11 +12,19 @@ from .routing import GROUP_ID, RouteGroup, Rule, normalize_conditions
 
 SPEC_VERSION = "v3"
 EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+RETIRED_V4_GROUPS = frozenset({
+    "group/work", "group/light", "group/architect", "group/implement",
+    "group/review", "group/tests", "group/vision", "group/compact",
+    "group/long", "group/classify", "group/sota", "group/fallback",
+    "group/task-light", "group/task-long", "group/task-classify",
+    "group/pool-long", "group/pool-build-long", "group/pool-build-credit",
+    "group/pool-classify", "group/pool-free", "group/pool-economy",
+})
 
 
 @dataclass(frozen=True)
 class DesiredGroup:
-    """目标组；name 仅用于新建显示，不强制改名现有组。"""
+    """目标组；非空 name 参与状态比较，应用时也更新现有组名称。"""
 
     id: str
     routing: str
@@ -354,7 +362,7 @@ def same_configuration(actual: RouteGroup, desired: DesiredGroup) -> bool:
 
 
 def diff_lines(actual_groups: list[RouteGroup], spec: DesiredSpec) -> list[str]:
-    """展示实际差异，包括规则数量相同但条件或顺序变化。"""
+    """展示目标差异、已知退役组和未纳入规范的其他实时组。"""
     actual_by_id = {f"group/{group.id}": group for group in actual_groups}
     lines = []
     for desired in application_order(spec):
@@ -377,4 +385,10 @@ def diff_lines(actual_groups: list[RouteGroup], spec: DesiredSpec) -> list[str]:
         ):
             if before != after:
                 lines.append(f"  {label}：{before} → {after}")
+    expected_ids = {group.id for group in spec.groups}
+    for reference in sorted(actual_by_id.keys() - expected_ids):
+        if spec.version == "v4" and reference in RETIRED_V4_GROUPS:
+            lines.append(f"RETIRED {reference}")
+        else:
+            lines.append(f"UNKNOWN {reference}")
     return lines

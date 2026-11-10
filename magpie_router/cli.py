@@ -78,7 +78,7 @@ def main(arguments: list[str] | None = None) -> int:
             if args.route_command == "diff":
                 lines = sync_and_diff()
                 print("\n".join(lines))
-                return 1 if any(line.startswith(("CHANGE", "MISSING")) for line in lines) else 0
+                return 1 if any(line.startswith(("CHANGE", "MISSING", "RETIRED")) for line in lines) else 0
             if not args.yes:
                 raise MagpieError("应用路由规范需要 --yes。")
             apply_spec()

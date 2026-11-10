@@ -265,7 +265,7 @@ def inspect() -> dict[str, str]:
 
 def topology_findings(groups: list[RouteGroup], spec_path: Path | None = None) -> list[Finding]:
     """按实时成员检查相邻层引用，规则目标与分类器也纳入同一契约。"""
-    from .desired import load_spec
+    from .desired import RETIRED_V4_GROUPS, load_spec
 
     spec = load_spec(spec_path)
     layers = {group.id: group.layer for group in spec.groups}
@@ -278,7 +278,10 @@ def topology_findings(groups: list[RouteGroup], spec_path: Path | None = None) -
         reference = f"group/{group.id}"
         layer = layers.get(reference)
         if layer is None:
-            findings.append(Finding("warning", reference, "实时组未包含在当前规范中，无法判断层级。"))
+            if spec.version == "v4" and reference in RETIRED_V4_GROUPS:
+                findings.append(Finding("error", reference, "已知退役组仍存在；检查引用后由用户决定是否删除。"))
+            else:
+                findings.append(Finding("warning", reference, "实时组未包含在当前规范中，无法判断层级。"))
             continue
         references = [member.id for member in group.members]
         references.extend(target for rule in group.rules for target in rule.targets)
