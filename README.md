@@ -27,7 +27,7 @@ python -m magpie_router route diff
 python -m magpie_router route apply --yes
 ```
 
-`policies/routing.json` 是当前期望路由。`route apply --yes` 会逐组修改 magpie，并在失败时恢复该组。本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
+`policies/routing.json` 尚未与当前实际组 ID 和成员对齐，暂勿运行 `route apply --yes`。本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
 
 数据库表、分层关联与历史语义见 `docs/database.md`。四层规范和实时观测分别保存，迁移中的差异以 `route diff` 为准。
 
@@ -43,6 +43,7 @@ python -m magpie_router route apply --yes
 
 ## 文档
 
+- `docs/routing-blueprint.drawio`：可编辑的路由总蓝图；图中区分目标设计与部署状态。路由结构或边界变化时同步维护。
 - `docs/architecture.md`：控制闭环、模块职责与实施阶段。
 - `GLOSSARY.md`：项目统一术语。
 - `skills/magpie-router/SKILL.md`：Agent 的工作流程。
