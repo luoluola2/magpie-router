@@ -45,20 +45,23 @@ class LayerTests(unittest.TestCase):
             DesiredGroup("group/task-general", "order", "turn", ("group/pool-fallback",), name="任务 · 通用", layer="task"),
             DesiredGroup("group/task-implement-strong", "order", "turn", ("group/pool-build-strong",), name="任务 · 强化", layer="task"),
             DesiredGroup("group/task-sota", "order", "turn", ("group/pool-sota",), name="任务 · SOTA", layer="task"),
-            DesiredGroup("group/entry-work", "order", "turn", ("group/task-general", "group/task-implement-strong"), classifier="typesafe/jev-latest", name="入口 · 总调度", layer="entry"),
+            DesiredGroup("group/entry-work", "order", "turn", ("group/task-general",), classifier="typesafe/jev-latest", name="入口 · 总调度", layer="entry"),
         ))
         validate_spec(spec)
         self.assertEqual(application_order(spec)[-1].id, "group/entry-work")
         altered = tuple(replace(group, members=("group/pool-build-strong", "group/pool-fallback")) if group.id == "group/task-implement-strong" else group for group in spec.groups)
         with self.assertRaises(MagpieError):
             validate_spec(DesiredSpec("v4", altered))
+        altered = tuple(replace(group, members=("group/task-general", "group/task-implement-strong")) if group.id == "group/entry-work" else group for group in spec.groups)
+        with self.assertRaises(MagpieError):
+            validate_spec(DesiredSpec("v4", altered))
 
     def test_v4_target_work_intents_and_dependencies(self):
-        """目标规范具备自动强化意图且不再设置长度分流。"""
-        spec = load_spec(Path("policies/routing-v4.json"))
+        """强化入口不经 Work 自动回退，普通任务不再设置长度分流。"""
+        spec = load_spec()
         work = next(group for group in spec.groups if group.id == "group/entry-work")
-        self.assertIn("group/task-implement-strong", work.members)
-        self.assertTrue(any(rule.target == "group/task-implement-strong" and "intent" in dict(rule.conditions) for rule in work.rules))
+        self.assertNotIn("group/task-implement-strong", work.members)
+        self.assertFalse(any(rule.target == "group/task-implement-strong" for rule in work.rules))
         self.assertFalse(any("tokens" in dict(rule.conditions) for group in spec.groups for rule in group.rules))
         self.assertNotIn("group/task-sota", work.members)
 
@@ -91,7 +94,7 @@ class LayerTests(unittest.TestCase):
         """实时任务直连模型、资源池引用组和规则跨层均必须报告。"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "routing.json"
-            path.write_text(Path("policies/routing.json").read_text(encoding="utf-8"), encoding="utf-8")
+            path.write_text(Path("policies/routing-v3.json").read_text(encoding="utf-8"), encoding="utf-8")
             groups = [
                 RouteGroup("light", "Light", (
                     Member("workbuddy/hy4free", True, ""), Member("group/fallback", True, ""),

@@ -268,6 +268,8 @@ def _validate_v4(spec: DesiredSpec) -> None:
         raise MagpieError("强化实现不能回退到普通池。")
     if groups["group/pool-build-strong"].members != ("codex/gpt-6.1-sol:xhigh",):
         raise MagpieError("强化池必须固定 Sol 的 xhigh 推理。")
+    if "group/task-implement-strong" in groups["group/entry-work"].members:
+        raise MagpieError("Work 规则失败时会回退其他成员，不能保证强化任务不降级。")
     application_order(spec)
 
 

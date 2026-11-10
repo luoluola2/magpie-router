@@ -16,7 +16,7 @@
 
 当前实现保持一个小接口：`python -m magpie_router`。
 
-期望路由采用 Work → 任务入口 → 资源池 → 具体模型四层结构；资源池复用模型路径但不复制订阅额度。分类器是辅助任务入口，SOTA 为手动入口。分层规则和具体成员见 `policies/routing-overview.md`。
+业务路由采用 Work → 任务入口 → 资源池 → 具体模型四层结构；资源池复用模型路径但不复制订阅额度。Jev 通过 Magpie 原生分类器直接接入，是不参与业务成员链的辅助控制引用；SOTA 为手动入口。分层规则和具体成员见 `policies/routing-overview.md`。
 
 - **Magpie adapter**：定位 CLI、执行参数数组、保留退出码与诊断输出。供应商凭据永不进入计划。
 - **Route model**：从组详情解析成员、顺序和可用性，并比较基线。

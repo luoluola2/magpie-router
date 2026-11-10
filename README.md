@@ -27,7 +27,7 @@ python -m magpie_router route diff
 python -m magpie_router route apply --yes
 ```
 
-`policies/routing.json` 尚未与当前实际组 ID 和成员对齐，暂勿运行 `route apply --yes`。本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
+`policies/routing.json` 是 v4 期望路由，实际配置以 Magpie 为准。应用前先运行 `route diff` 并核对变更与授权；本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
 
 数据库表、分层关联与历史语义见 `docs/database.md`。四层规范和实时观测分别保存，迁移中的差异以 `route diff` 为准。
 

@@ -79,13 +79,13 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(same_configuration(self.actual(1048576), self.desired()))
         self.assertFalse(same_configuration(self.actual(500000), self.desired()))
         self.assertEqual(group_payload(self.actual())["context"], 256000)
-        spec = load_spec()
+        spec = load_spec(Path("policies/routing-v3.json"))
         actual = self.actual()
         self.assertTrue(any("公布上下文" in line for line in diff_lines([actual], spec)))
 
     def test_windows_and_implement_baseline(self):
         """长规则仍在公布容量内，Implement 显式保留两个 max 基准路径。"""
-        groups = {group.id: group for group in load_spec().groups}
+        groups = {group.id: group for group in load_spec(Path("policies/routing-v3.json")).groups}
         self.assertEqual(groups["group/work"].context, 1000000)
         self.assertEqual(groups["group/sota"].context, 272000)
         self.assertEqual(groups["group/classify"].context, 256000)

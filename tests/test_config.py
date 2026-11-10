@@ -39,7 +39,7 @@ class SpecTests(unittest.TestCase):
 
     def test_v3_topology_and_sota_isolation(self):
         """二十四组可拓扑排序；SOTA 与按量 API 不进入自动链。"""
-        spec = load_spec()
+        spec = load_spec(Path("policies/routing-v3.json"))
         self.assertEqual(spec.version, "v3")
         self.assertEqual(len(spec.groups), 24)
         self.assertEqual(application_order(spec)[-1].id, "group/work")
@@ -59,7 +59,7 @@ class SpecTests(unittest.TestCase):
 
     def test_combined_conditions_and_work_precedence(self):
         """规则支持 AND 条件，意图优先于图片和长度。"""
-        spec = load_spec()
+        spec = load_spec(Path("policies/routing-v3.json"))
         work = {group.id: group for group in spec.groups}["group/work"]
         conditions = [dict(rule.conditions) for rule in work.rules]
         self.assertEqual(conditions[0], {"compact": "true"})
@@ -72,7 +72,7 @@ class SpecTests(unittest.TestCase):
 
     def test_validate_rejects_loop_missing_fallback_and_sota_reference(self):
         """配置校验拒绝环、缺少末位兜底和自动调用 SOTA。"""
-        spec = load_spec()
+        spec = load_spec(Path("policies/routing-v3.json"))
         groups = {group.id: group for group in spec.groups}
         with self.assertRaises(MagpieError):
             validate_spec(DesiredSpec("v3", spec.groups[:-1] + (
@@ -111,7 +111,7 @@ class SpecTests(unittest.TestCase):
             "use=group/review", "intent=评审", "classifier=group/classify"])
         with self.assertRaises(MagpieError):
             rule_arguments(intent)
-        spec = load_spec()
+        spec = load_spec(Path("policies/routing-v3.json"))
         work = {group.id: group for group in spec.groups}["group/work"]
         rules = [dict(rule.conditions) for rule in work.rules]
         self.assertLess(rules.index({"images": "true"}), rules.index({"tokens": "500000"}))

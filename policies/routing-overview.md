@@ -1,62 +1,41 @@
 # 路由调度总表
 
-**待同步：** 本文及 `routing.json` 中的旧组 ID、成员和规则尚未与实时配置对齐，不能用于应用配置。2026-11-10 的免费模型实际变更与维护步骤见 `free-models.md`；实时配置以 magpie CLI 为准。
+2026-11-10：v4 目标配置见 `routing.json`；实际状态以 Magpie 为准，使用 `python -m magpie_router route diff` 比较。旧规范 `routing-v3.json` 仅供历史测试，不可用于应用。
 
-2026-11-10：Work 已直接使用 `typesafe/jev-latest` 作为 Magpie 原生分类器；分类器作为辅助控制引用不受业务层级限制。合成测试、恢复依据及 v4 未完成事项见 `docs/jev-migration.md`。
+业务链采用 `entry-work → task-* → pool-* → 具体模型`。Jev 是 Magpie 原生辅助分类器，任务入口和 Work 直接引用 `typesafe/jev-latest`；该辅助引用不属于业务成员链。Magpie 不允许将含决策模型的组作为另一组的普通成员。详见 `docs/jev-migration.md`。
 
-本表记录长期策略，`routing.json` 是期望配置，magpie 是运行事实来源；运行 `route diff` 核对两者。子代理职责见 `subagents/README.md`，渠道和价格依据分别见 `providers.md`、`cost-model.md`。
+## 任务入口
 
-2026-11-09 已完成各任务入口的分层迁移，并通过 CLI 回读确认成员；上下文容量以实时元数据为准，差异通过 `route diff` 报告。
-
-## 四层结构
-
-`Work → 任务入口 → 资源池 → 具体模型`。配置引用仅跨相邻层，图片、长度和推理要求由 magpie 处理；复用模型路径不会产生新额度。Classify 是 Work 的辅助分类入口；SOTA 仅供手动选择，自动路径不通向它。
-
-显示名称分别采用 `入口 · …`、`任务 · …`、`资源池 · …`。Fallback 是第三层资源池；Long 和 Vision 各有独立的任务入口与资源池。组 ID 保持稳定，供 Agent 和路由引用。
-
-| 入口 | 默认资源池顺序 | 额外规则 |
+| 任务 | 默认资源池 | 额外选择 |
 | --- | --- | --- |
-| Architect | reason → long → fallback | 400k 起优先 long |
-| Implement | build → build-long → build-credit → fallback | 400k 起优先 build-long |
-| Review | reason → long → fallback | 400k 起优先 long |
-| Tests | tests → long → fallback | 无 |
-| Vision | vision → long → fallback | 400k 起优先 long |
-| Light | free → economy → long → fallback | 200k 起优先 economy |
-| Compact | compact → long → fallback | 无 |
-| Long | long → fallback | 无 |
-| Classify | classify → fallback | 无 |
-| SOTA | sota | 手动选择，不接普通 Fallback |
+| 通用问答 `task-general` | general → reason → fallback | 技术推导、复杂解释与多因素比较优先 reason |
+| 架构 `task-architect` | reason → build → fallback | 代码示例、可行性验证和具体落地步骤优先 build |
+| 实现 `task-implement` | build → build-reserve → fallback | 常规实现 |
+| 强化实现 `task-implement-strong` | build-strong | 仅 Sol:xhigh，不接普通兜底 |
+| 评审 `task-review` | reason → build → fallback | 实际代码行为与调用链优先 build |
+| 测试 `task-tests` | tests → build → fallback | 集成、端到端及跨组件测试优先 build |
+| 视觉 `task-vision` | vision → fallback | 视觉理解 |
+| 摘要 `task-compact` | compact → fallback | 压缩、整理 |
+| SOTA `task-sota` | sota | 仅手动 |
 
-Work 的顺序是压缩、评审、架构、纯测试、实现、视觉理解、图片、500k 长请求，默认 Light。意图分类失败时，图片和长度规则仍可匹配；截图实现仍属于 Implement。
+Work 的意图规则依次覆盖压缩、评审、架构、纯测试、常规实现、视觉、摘要、通用问答及闲聊，图片条件位于意图规则之后。Jev 失败时意图不匹配，确定性条件与默认通用入口仍可用。
 
-## 资源池与成本
+**待解决：** Magpie 的意图规则只提升首选项，失败后仍尝试组内其他成员。若将强化任务作为 Work 成员自动选择，强化候选失败后仍可能落入普通链，违反不降级要求。因此暂时移除 Work 的强化意图规则；强化实现入口仍可手动选择。恢复自动强化需要新的运行时能力或重新确定降级边界。
 
-| 资源池 | 成员及调度 | 成本和用途 |
-| --- | --- | --- |
-| reason | Sol、Kimi、Grok；smart / auto | 架构和评审的订阅候选 |
-| build | Terra、Sol、Kimi、Go Flash:max；smart / auto | 实现主力；Flash:max 是能力目标，其他成员尚无对照证明 |
-| build-long | Kimi、Go Flash:max；smart / auto | 长实现优先 |
-| build-credit | WorkBuddy Flash:max；order / turn | 积分和赠费后备，不能认定免费 |
-| economy | Qwen、GLM、Haiku、Luna，均 low；smart / turn | 已购订阅轻任务 |
-| tests | Go Flash:low、GLM:high、Haiku:low、Qwen:low；smart / turn | 常规测试 |
-| compact | WorkBuddy Flash、Go Flash、Qwen、Haiku，均 low；order / turn | 压缩 |
-| classify | WorkBuddy Flash:none、Haiku:low、Luna:low；order / turn | 分类 |
-| vision | Terra、Kimi、Qwen；smart / auto | 声明支持视觉的订阅路径 |
-| long | Kimi、Qwen、Go Flash；smart / auto | 长请求 |
-| free | Hy4 和四个 OpenRouter 免费模型；order / turn | 轻任务免费优先，具体 ID 见规范 |
-| fallback | free 的成员、Qwen、Luna、Grok；order / turn | 跨供应商恢复，允许能力降级 |
-| sota | Astra → 鱼鱼 Opus；order / turn | 手动；前者消耗 Plus 窗口，后者产生按量现金成本 |
+## 资源池和成本
 
-`smart` 以 magpie 的订阅窗口规则调度，并不证明候选质量等价。`auto` 的缓存收益及窗口利用收益尚未实测。订阅模型共享对应账户窗口；OpenCode Go 两个密钥各有资源窗口。WorkBuddy 的赠费和模型价格按实际路径确认，不以 Free plan 推断全部免费。
+成员顺序、推理强度、上下文与规则文本以 `routing.json` 为准。`pool-general` 面向日常通用任务；`pool-fallback` 面向跨任务故障恢复，两者少量复用模型但用途不同。免费候选的路径证据和复核步骤见 `free-models.md`。
 
-## 上下文与验证边界
+`pool-build` 为 Terra 和 OpenCode Go Flash:max；`pool-build-reserve` 为 WorkBuddy Flash:max。`pool-build-strong` 仅包含 Sol:xhigh，不能降级到普通模型。OpenCode Go 只使用 DeepSeek V4.1 Flash。`pool-sota` 手动使用 Astra 与鱼鱼 Opus，官方按量 DeepSeek 不进入自动路径。
 
-Work 和八个普通任务入口公布 1M，Classify 为 256k、SOTA 为 272k。资源池的公布容量见 `routing.json`，它是入口提示，不保证每个成员均可处理同等长度。400k、200k 是候选偏好切换阈值。
+固定订阅与按量成本分别评估。免费、赠费、未知价格及订阅窗口不合并为单一分数；实际成本依据见 `cost-model.md`、`providers.md`。
 
-用户已实测：会话超过某模型上下文时，magpie 跳过该模型并尝试后续可容纳的候选。本项目没有独立验证图片过滤、输出预留和粘性行为，也没有实测模型质量或额度优化；维护时不要把上述事项写成已验证结论。
+## 容量与验证边界
 
-2026-11-09 本机 `model price` 将 Hy4 和四条指定 OpenRouter 路径的输入、输出及缓存价格显示为零；供应商限制和价格可能改变。模型能力参数以实际路径的 `magpie model spec` 为准，价格与套餐变更按 `cost-model.md` 核查。
+普通任务和 Work 公布 1,000,000 tokens，强化入口公布 500,000；池的公布容量不代表每个候选均可处理该长度。用户报告 Magpie 会跳过上下文不足的模型，独立 Long 入口已移除。图片过滤、输出预留、自动路由质量和配额收益尚未独立验证。
 
-## 维护
+Jev 已在合成文本下返回预期分类，但 Work 的完整真实请求分流效果尚未验证；Jev 标称 32k 上下文，不因外围组公布容量而扩大。`docs/routing-blueprint.drawio` 是可编辑总蓝图，路由结构及部署状态变化时同步维护。
 
-调整前核对当前配置、能力及成本依据；按依赖顺序逐组应用并回读，保留 SQLite 应用记录及 `.local/` 快照。只记录可复核的策略和证据，不提交密钥、完整会话、原始请求或个人用量。模型暴露、供应商、订阅和 Agent 默认模型须单独授权。
+## 日常维护
+
+按需观测目录、模型规格和价格，区分实际观测、用户确认和未知；新增或下架模型先形成建议。变更前核对实时状态，逐组保存基线、应用、回读并同步 SQLite；不记录密钥、完整会话或原始请求。模型目录不完整时标记 `partial`。
