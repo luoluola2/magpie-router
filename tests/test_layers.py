@@ -7,7 +7,7 @@ from contextlib import closing
 from pathlib import Path
 from dataclasses import replace
 
-from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, validate_spec
+from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, load_spec, validate_spec
 from magpie_router.magpie import MagpieError
 from magpie_router.store import _replace_current, initialize
 from magpie_router.routing import RouteGroup, Member, Rule, topology_findings
@@ -52,6 +52,15 @@ class LayerTests(unittest.TestCase):
         altered = tuple(replace(group, members=("group/pool-build-strong", "group/pool-fallback")) if group.id == "group/task-implement-strong" else group for group in spec.groups)
         with self.assertRaises(MagpieError):
             validate_spec(DesiredSpec("v4", altered))
+
+    def test_v4_target_work_intents_and_dependencies(self):
+        """目标规范具备自动强化意图且不再设置长度分流。"""
+        spec = load_spec(Path("policies/routing-v4.json"))
+        work = next(group for group in spec.groups if group.id == "group/entry-work")
+        self.assertIn("group/task-implement-strong", work.members)
+        self.assertTrue(any(rule.target == "group/task-implement-strong" and "intent" in dict(rule.conditions) for rule in work.rules))
+        self.assertFalse(any("tokens" in dict(rule.conditions) for group in spec.groups for rule in group.rules))
+        self.assertNotIn("group/task-sota", work.members)
 
     def test_forbidden_references(self):
         """跨层、同层、缺失兜底和手动模型不能进入自动链。"""

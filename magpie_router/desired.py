@@ -331,7 +331,7 @@ def check_exposed_models(spec: DesiredSpec) -> None:
     }
     for provider in sorted({ref.split("/", 1)[0] for ref in references}):
         output = checked_magpie(["provider", provider])
-        exposed = set(re.findall(r"^  \s+(" + re.escape(provider) + r"/\S+)\s{2,}", output, re.MULTILINE))
+        exposed = set(re.findall(r"^  \s+(" + re.escape(provider) + r"/\S+)(?:\s{2,}|$)", output, re.MULTILINE))
         missing = sorted(ref for ref in references if ref.startswith(provider + "/") and ref not in exposed)
         if missing:
             raise MagpieError(f"无法确认模型已暴露，拒绝写入：{', '.join(missing)}")
