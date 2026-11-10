@@ -36,6 +36,23 @@ class LayerTests(unittest.TestCase):
         self.assertLess(order.index("group/pool-a"), order.index("group/light"))
         self.assertEqual(order[-1], "group/work")
 
+    def test_v4_native_classifier_and_strong_boundary(self):
+        """原生 Jev 可用作分类器，强化任务不能进入普通兜底。"""
+        spec = DesiredSpec("v4", (
+            DesiredGroup("group/pool-fallback", "order", "turn", ("vendor/free",), name="资源池 · 恢复", layer="pool"),
+            DesiredGroup("group/pool-build-strong", "order", "auto", ("codex/gpt-6.1-sol:xhigh",), name="资源池 · 强化", layer="pool"),
+            DesiredGroup("group/pool-sota", "order", "turn", ("vendor/opus",), name="资源池 · SOTA", layer="pool"),
+            DesiredGroup("group/task-general", "order", "turn", ("group/pool-fallback",), name="任务 · 通用", layer="task"),
+            DesiredGroup("group/task-implement-strong", "order", "turn", ("group/pool-build-strong",), name="任务 · 强化", layer="task"),
+            DesiredGroup("group/task-sota", "order", "turn", ("group/pool-sota",), name="任务 · SOTA", layer="task"),
+            DesiredGroup("group/entry-work", "order", "turn", ("group/task-general", "group/task-implement-strong"), classifier="typesafe/jev-latest", name="入口 · 总调度", layer="entry"),
+        ))
+        validate_spec(spec)
+        self.assertEqual(application_order(spec)[-1].id, "group/entry-work")
+        altered = tuple(replace(group, members=("group/pool-build-strong", "group/pool-fallback")) if group.id == "group/task-implement-strong" else group for group in spec.groups)
+        with self.assertRaises(MagpieError):
+            validate_spec(DesiredSpec("v4", altered))
+
     def test_forbidden_references(self):
         """跨层、同层、缺失兜底和手动模型不能进入自动链。"""
         spec = self.spec()

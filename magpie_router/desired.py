@@ -64,8 +64,8 @@ def load_spec(path: Path | None = None) -> DesiredSpec:
         raw = json.loads(spec_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise MagpieError(f"无法读取路由规范：{error}") from error
-    if not isinstance(raw, dict) or set(raw) != {"version", "groups"} or raw.get("version") not in {"v2", SPEC_VERSION}:
-        raise MagpieError("路由规范须为 v2 或 v3。")
+    if not isinstance(raw, dict) or set(raw) != {"version", "groups"} or raw.get("version") not in {"v2", SPEC_VERSION, "v4"}:
+        raise MagpieError("路由规范须为 v2、v3 或 v4。")
     if not isinstance(raw["groups"], list) or not raw["groups"]:
         raise MagpieError("规范缺少 groups。")
     spec = DesiredSpec(raw["version"], tuple(_desired_group(item) for item in raw["groups"]))
@@ -155,15 +155,19 @@ def application_order(spec: DesiredSpec) -> tuple[DesiredGroup, ...]:
             ordered.append(by_id[reference])
 
     for group in spec.groups:
-        if group.id != "group/work":
+        if group.id not in {"group/work", "group/entry-work"}:
             visit(group.id, ())
-    if "group/work" in by_id:
-        visit("group/work", ())
+    for entry in ("group/work", "group/entry-work"):
+        if entry in by_id:
+            visit(entry, ())
     return tuple(ordered)
 
 
 def validate_spec(spec: DesiredSpec) -> None:
     """校验引用、末位兜底和 SOTA 隔离，不硬编码任务排序或规则数。"""
+    if spec.version == "v4":
+        _validate_v4(spec)
+        return
     if spec.version == "v3":
         _validate_layers(spec)
         return
@@ -199,6 +203,71 @@ def validate_spec(spec: DesiredSpec) -> None:
             raise MagpieError(f"{reference} 只能引用具体模型，不能使用组或分类器。")
     if "group/fallback" in dependencies(by_id["group/work"]):
         raise MagpieError("Work 不能直接调用 Fallback。")
+    application_order(spec)
+
+
+def _validate_v4(spec: DesiredSpec) -> None:
+    """校验 v4 业务分层、原生分类器和强化链的边界。"""
+    groups = {group.id: group for group in spec.groups}
+    required = {
+        "group/entry-work": "entry", "group/task-implement-strong": "task",
+        "group/task-sota": "task", "group/pool-build-strong": "pool",
+        "group/pool-fallback": "pool", "group/pool-sota": "pool",
+    }
+    if len(groups) != len(spec.groups):
+        raise MagpieError("组 id 重复。")
+    if any(ref not in groups or groups[ref].layer != layer for ref, layer in required.items()):
+        raise MagpieError("v4 缺少必需的入口、强化链或兜底池。")
+    if [group.id for group in spec.groups if group.layer == "entry"] != ["group/entry-work"]:
+        raise MagpieError("Work 必须是唯一总入口。")
+    names = set()
+    used_pools = set()
+    for group in spec.groups:
+        prefixes = {"entry": ("group/entry-", "入口 · "), "task": ("group/task-", "任务 · "), "pool": ("group/pool-", "资源池 · ")}
+        if group.layer not in prefixes:
+            raise MagpieError(f"{group.id} 的层级无效。")
+        prefix, label = prefixes[group.layer]
+        if not group.id.startswith(prefix) or not group.name.startswith(label) or group.name in names:
+            raise MagpieError(f"{group.id} 的名称或 ID 不符合 v4 命名规范。")
+        names.add(group.name)
+        if group.classifier and group.classifier != "typesafe/jev-latest":
+            raise MagpieError(f"{group.id} 的分类器不符合原生 Jev 契约。")
+        for rule in group.rules:
+            if not set(rule.targets) <= set(group.members):
+                raise MagpieError(f"{group.id} 的规则目标必须是本组成员。")
+            if "intent" in dict(rule.conditions) and not group.classifier:
+                raise MagpieError(f"{group.id} 的意图规则缺少分类器。")
+        for reference in group.members:
+            if group.layer == "pool":
+                if reference.startswith("group/"):
+                    raise MagpieError(f"{group.id} 的资源池只能引用模型。")
+                provider, model = model_reference(reference).split("/", 1)
+                if group.id != "group/pool-sota" and (provider == "deepseek" or "astra" in model.lower() or "opus" in model.lower()):
+                    raise MagpieError(f"{group.id} 包含仅限手动调用的模型：{reference}")
+                if provider == "opencode-go" and model != "deepseek-v4.1-flash":
+                    raise MagpieError(f"{group.id} 包含非 Flash 的 OpenCode Go 模型：{reference}")
+            else:
+                expected = "task" if group.layer == "entry" else "pool"
+                if reference not in groups or groups[reference].layer != expected:
+                    raise MagpieError(f"{group.id} 只能引用相邻层：{reference}")
+                if group.layer == "task":
+                    used_pools.add(reference)
+        if group.id != "group/task-sota" and "group/pool-sota" in dependencies(group):
+            raise MagpieError("手动 SOTA 资源池不能进入自动链。")
+        if group.id != "group/task-sota" and "group/task-sota" in dependencies(group):
+            raise MagpieError("SOTA 只能手动调用。")
+        if group.layer == "task" and group.id not in {"group/task-sota", "group/task-implement-strong"}:
+            if group.members.count("group/pool-fallback") != 1 or group.members[-1] != "group/pool-fallback":
+                raise MagpieError(f"{group.id} 必须以唯一 Fallback 结尾。")
+    pools = {group.id for group in spec.groups if group.layer == "pool"}
+    if pools - used_pools:
+        raise MagpieError(f"资源池未被任务组引用：{', '.join(sorted(pools - used_pools))}")
+    if groups["group/task-sota"].members != ("group/pool-sota",):
+        raise MagpieError("SOTA 必须仅引用手动资源池。")
+    if groups["group/task-implement-strong"].members != ("group/pool-build-strong",):
+        raise MagpieError("强化实现不能回退到普通池。")
+    if groups["group/pool-build-strong"].members != ("codex/gpt-6.1-sol:xhigh",):
+        raise MagpieError("强化池必须固定 Sol 的 xhigh 推理。")
     application_order(spec)
 
 
@@ -272,6 +341,7 @@ def same_configuration(actual: RouteGroup, desired: DesiredGroup) -> bool:
     """比较实时组与规范中的路由字段、成员、规则和分类器。"""
     return (
         f"group/{actual.id}" == desired.id
+        and (not desired.name or actual.name == desired.name)
         and actual.routing == desired.routing
         and actual.stays == desired.stays
         and actual.classifier == desired.classifier
@@ -295,6 +365,7 @@ def diff_lines(actual_groups: list[RouteGroup], spec: DesiredSpec) -> list[str]:
             continue
         lines.append(f"CHANGE {desired.id}")
         for label, before, after in (
+            ("名称", actual.name, desired.name or actual.name),
             ("成员", tuple(member.id for member in actual.members), desired.members),
             ("routing", actual.routing, desired.routing),
             ("stays", actual.stays, desired.stays),

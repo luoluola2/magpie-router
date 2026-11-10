@@ -282,7 +282,7 @@ def topology_findings(groups: list[RouteGroup], spec_path: Path | None = None) -
             continue
         references = [member.id for member in group.members]
         references.extend(target for rule in group.rules for target in rule.targets)
-        if group.classifier:
+        if group.classifier and not (spec.version == "v4" and group.classifier == "typesafe/jev-latest"):
             references.append(group.classifier)
         for target in references:
             if layer == "pool":

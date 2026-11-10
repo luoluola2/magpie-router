@@ -56,6 +56,8 @@ def _mutate(desired: DesiredGroup, current: RouteGroup) -> None:
     if replace_rules:
         _remove_rules(desired.id, len(current.rules))
     settings = []
+    if desired.name and current.name != desired.name:
+        settings.append("name=" + desired.name)
     if tuple(member.id for member in current.members) != desired.members:
         settings.append("models=" + ",".join(desired.members))
     if current.routing != desired.routing:
@@ -78,7 +80,7 @@ def restore_group(before: RouteGroup) -> None:
     short = _short_id(f"group/{before.id}")
     current = read_group(f"group/{before.id}")
     _remove_rules(f"group/{before.id}", len(current.rules))
-    settings = ["models=" + ",".join(member.id for member in before.members)]
+    settings = ["models=" + ",".join(member.id for member in before.members), "name=" + before.name]
     if before.routing:
         settings.append("routing=" + before.routing)
     if before.stays:
@@ -133,6 +135,7 @@ def apply_group(
         actual = read_group(desired.id, include_context=desired.context is not None)
         if not same_configuration(actual, desired):
             fields = (
+                ("name", actual.name, desired.name if desired.name else actual.name),
                 ("members", tuple(member.id for member in actual.members), desired.members),
                 ("routing", actual.routing, desired.routing),
                 ("stays", actual.stays, desired.stays),
