@@ -96,10 +96,10 @@ class ContextTests(unittest.TestCase):
             for rule in group.rules:
                 threshold = dict(rule.conditions).get("tokens")
                 if threshold:
-                    self.assertLess(int(threshold), group.context)
+                    self.assertLess(int(threshold), group.context or 0)
 
     def test_existing_database_migration_preserves_rows(self):
-        """旧镜像追加容量列，重复初始化不删除旧数据。"""
+        """旧镜像追加容量、阈值和规则条件列，重复初始化不删除旧数据。"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "db.sqlite"
             with closing(sqlite3.connect(path)) as connection:
@@ -107,11 +107,19 @@ class ContextTests(unittest.TestCase):
                     "CREATE TABLE groups (group_id TEXT PRIMARY KEY, name TEXT, routing TEXT, stays TEXT, classifier TEXT)"
                 )
                 connection.execute("INSERT INTO groups VALUES ('group/a','A','order','turn','')")
+                connection.execute(
+                    "CREATE TABLE rules (group_id TEXT, position INTEGER, target TEXT, conditions_json TEXT)"
+                )
+                connection.execute("INSERT INTO rules VALUES ('group/a',1,'x/y','{}')")
                 connection.commit()
             initialize(path)
             initialize(path)
             with closing(sqlite3.connect(path)) as connection:
-                self.assertEqual(connection.execute("SELECT group_id, layer, context FROM groups").fetchone(), ("group/a", "unknown", None))
+                self.assertEqual(connection.execute("SELECT group_id, layer, context, intent_sure FROM groups").fetchone(), ("group/a", "unknown", None, ""))
+                self.assertEqual(
+                    connection.execute("SELECT target, conditions_json, expressions_json, use_effort FROM rules").fetchone(),
+                    ("x/y", "{}", "[]", ""),
+                )
 
     @patch("magpie_router.rollout.checked_magpie")
     @patch("magpie_router.rollout.read_group")

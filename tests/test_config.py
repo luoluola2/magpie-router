@@ -9,16 +9,29 @@ from pathlib import Path
 from unittest.mock import patch
 
 from magpie_router.desired import (
-    DesiredGroup, DesiredSpec, application_order, load_spec, validate_spec,
+    DesiredGroup,
+    DesiredSpec,
+    application_order,
+    load_spec,
+    validate_spec,
 )
 from magpie_router.magpie import MagpieError
 from magpie_router.rollout import apply_group, apply_spec, rule_arguments
 from magpie_router.routing import (
-    Member, RouteGroup, Rule, normalize_conditions, normalize_expressions,
-    normalize_use_effort, parse_group,
+    Member,
+    RouteGroup,
+    Rule,
+    normalize_conditions,
+    normalize_expressions,
+    normalize_use_effort,
+    parse_group,
 )
-from magpie_router.store import catalog_completeness, initialize, latest_completeness, sync_observation
-
+from magpie_router.store import (
+    catalog_completeness,
+    initialize,
+    latest_completeness,
+    sync_observation,
+)
 
 DETAIL = """  Architect  group/architect
   routing   order
@@ -178,6 +191,50 @@ class StoreTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual(members, ["group/implement"])
+
+    @patch("magpie_router.store.context_windows", return_value={"group/work": 1000000})
+    def test_sync_persists_intent_sure_expressions_and_effort(self, windows):
+        """镜像保留组级阈值、when 表达式和规则推理强度。"""
+        detail = """  Work  group/work
+  routing   order
+  stays     turn
+  models    1 group/implement  child
+  rules     1 message contains "强化实现" → group/implement-strong,group/implement
+            2 intent "问候" → group/general at low
+  intent-sure 0.5  how sure the classifier must be
+  classifier typesafe/jev-latest  tells which intent a message is
+"""
+
+        def respond(arguments):
+            if arguments == ["providers"]:
+                return "1 exposed of 1 from example"
+            if arguments == ["groups"]:
+                return "  Work  group/work  order  \n"
+            if arguments == ["group", "work"]:
+                return detail
+            raise AssertionError(arguments)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "router.db"
+            with patch("magpie_router.store.checked_magpie", side_effect=respond):
+                sync_observation(path, Path("policies/routing.json"))
+            connection = sqlite3.connect(path)
+            try:
+                sure = connection.execute(
+                    "SELECT intent_sure FROM groups WHERE group_id='group/work'"
+                ).fetchone()[0]
+                rows = connection.execute(
+                    "SELECT target, conditions_json, expressions_json, use_effort FROM rules ORDER BY position"
+                ).fetchall()
+            finally:
+                connection.close()
+        self.assertEqual(sure, "0.5")
+        self.assertEqual(rows[0][0], "group/implement-strong,group/implement")
+        self.assertEqual(rows[0][1], "{}")
+        self.assertEqual(rows[0][2], '["message contains 强化实现"]')
+        self.assertEqual(rows[0][3], "")
+        self.assertEqual(rows[1][2], "[]")
+        self.assertEqual(rows[1][3], "low")
 
     def commands(self, member):
         """生成一次同步所需的 magpie 输出。"""

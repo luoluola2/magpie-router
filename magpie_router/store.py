@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS groups (
     layer TEXT NOT NULL DEFAULT 'unknown' CHECK (layer IN ('unknown', 'entry', 'task', 'pool')),
     routing TEXT NOT NULL,
     stays TEXT NOT NULL,
-    classifier TEXT NOT NULL
+    classifier TEXT NOT NULL,
+    intent_sure TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS members (
     group_id TEXT NOT NULL,
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS rules (
     position INTEGER NOT NULL,
     target TEXT NOT NULL,
     conditions_json TEXT NOT NULL,
+    expressions_json TEXT NOT NULL DEFAULT '[]',
+    use_effort TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (group_id, position)
 );
 CREATE TABLE IF NOT EXISTS desired_routes (
@@ -97,6 +100,13 @@ def initialize(path: Path | None = None) -> Path:
             connection.execute("ALTER TABLE groups ADD COLUMN context INTEGER")
         if "layer" not in columns:
             connection.execute("ALTER TABLE groups ADD COLUMN layer TEXT NOT NULL DEFAULT 'unknown'")
+        if "intent_sure" not in columns:
+            connection.execute("ALTER TABLE groups ADD COLUMN intent_sure TEXT NOT NULL DEFAULT ''")
+        rule_columns = {row["name"] for row in connection.execute("PRAGMA table_info(rules)")}
+        if "expressions_json" not in rule_columns:
+            connection.execute("ALTER TABLE rules ADD COLUMN expressions_json TEXT NOT NULL DEFAULT '[]'")
+        if "use_effort" not in rule_columns:
+            connection.execute("ALTER TABLE rules ADD COLUMN use_effort TEXT NOT NULL DEFAULT ''")
     return target
 
 
@@ -122,8 +132,8 @@ def _replace_current(connection: sqlite3.Connection, groups: list[RouteGroup], l
     for group in groups:
         reference = f"group/{group.id}"
         connection.execute(
-            "INSERT INTO groups (group_id, name, layer, routing, stays, classifier, context) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (reference, group.name, layers.get(reference, "unknown"), group.routing, group.stays, group.classifier, group.context),
+            "INSERT INTO groups (group_id, name, layer, routing, stays, classifier, context, intent_sure) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (reference, group.name, layers.get(reference, "unknown"), group.routing, group.stays, group.classifier, group.context, group.intent_sure),
         )
         for position, member in enumerate(group.members, start=1):
             connection.execute(
@@ -132,8 +142,12 @@ def _replace_current(connection: sqlite3.Connection, groups: list[RouteGroup], l
             )
         for position, rule in enumerate(group.rules, start=1):
             connection.execute(
-                "INSERT INTO rules (group_id, position, target, conditions_json) VALUES (?, ?, ?, ?)",
-                (reference, position, rule.target, json.dumps(dict(rule.conditions), ensure_ascii=False)),
+                "INSERT INTO rules (group_id, position, target, conditions_json, expressions_json, use_effort) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    reference, position, rule.target,
+                    json.dumps(dict(rule.conditions), ensure_ascii=False),
+                    json.dumps(list(rule.expressions), ensure_ascii=False), rule.use_effort,
+                ),
             )
 
 
@@ -201,6 +215,8 @@ def begin_apply(path: Path | None, group_id: str, before: dict, target: dict) ->
                 "in_progress",
             ),
         )
+        if cursor.lastrowid is None:
+            raise MagpieError("无法记录应用日志。")
         return cursor.lastrowid
 
 
