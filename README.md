@@ -47,6 +47,7 @@ python -m magpie_router route apply --yes
 - `docs/architecture.md`：控制闭环、模块职责与实施阶段。
 - `GLOSSARY.md`：项目统一术语。
 - `skills/magpie-router/SKILL.md`：Agent 的工作流程。
+- `~/.agents/skills/magpie-setup/SKILL.md` 与 `~/.agents/skills/magpie-quota/SKILL.md`：本项目最高优先级技能，分别负责 magpie 配置执行与额度用量观测，触发条件见 `AGENTS.md`「必备技能」。
 - `docs/agents/`：本地 issue、领域文档和 triage 约定。
 
 ## 验证
