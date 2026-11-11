@@ -1,6 +1,6 @@
 # 路由调度总表
 
-2026-11-10：v4 目标配置见 `routing.json`；实际状态以 Magpie 为准，使用 `python -m magpie_router route diff` 比较。旧规范 `routing-v3.json` 仅供历史测试，不可用于应用。
+2026-11-11：v4 目标配置见 `routing.json`；实际状态以 Magpie 为准，使用 `python -m magpie_router route diff` 比较。旧规范 `routing-v3.json` 仅供历史测试，不可用于应用。
 
 业务链采用 `entry-work → task-* → pool-* → 具体模型`。Jev 是 Magpie 原生辅助分类器，任务入口和 Work 直接引用 `typesafe/jev-latest`；该辅助引用不属于业务成员链。Magpie 不允许将含决策模型的组作为另一组的普通成员。详见 `docs/jev-migration.md`。
 
@@ -11,16 +11,27 @@
 | 通用问答 `task-general` | general → reason → fallback | 技术推导、复杂解释与多因素比较优先 reason |
 | 架构 `task-architect` | reason → build → fallback | 代码示例、可行性验证和具体落地步骤优先 build |
 | 实现 `task-implement` | build → build-reserve → fallback | 常规实现 |
-| 强化实现 `task-implement-strong` | build-strong | 仅 Sol:xhigh，不接普通兜底 |
+| 强化实现 `task-implement-strong` | build-strong | 仅 Sol:xhigh；自身不接普通兜底，Work 命中后允许降级到 `task-implement` |
 | 评审 `task-review` | reason → build → fallback | 实际代码行为与调用链优先 build |
 | 测试 `task-tests` | tests → build → fallback | 集成、端到端及跨组件测试优先 build |
 | 视觉 `task-vision` | vision → fallback | 视觉理解 |
 | 摘要 `task-compact` | compact → fallback | 压缩、整理 |
 | SOTA `task-sota` | sota | 仅手动 |
 
-Work 的意图规则依次覆盖压缩、评审、架构、纯测试、常规实现、视觉、摘要、通用问答及闲聊，图片条件位于意图规则之后。Jev 失败时意图不匹配，确定性条件与默认通用入口仍可用。
+Work 的 12 条规则依次覆盖压缩、显式强化文字、强化意图、评审、架构、纯测试、常规实现、视觉、摘要、通用问答、闲聊与图片。Jev 失败时意图不匹配，确定性条件与默认通用入口仍可用。
 
-**待解决：** Magpie 的意图规则只提升首选项，失败后仍尝试组内其他成员。若将强化任务作为 Work 成员自动选择，强化候选失败后仍可能落入普通链，违反不降级要求。因此暂时移除 Work 的强化意图规则；强化实现入口仍可手动选择。恢复自动强化需要新的运行时能力或重新确定降级边界。
+**降级边界（2026-11-11 决定）：** 用户接受「自动强化 + 允许降级」，`task-implement-strong` 已加入 Work 成员。Magpie 的规则只提升首选项，命中后组内其他成员仍是候选；强化规则用 `use=task-implement-strong,task-implement` 显式声明次级候选，Sol:xhigh 失败时回退普通实现链，此后还可能继续回退其他任务组。因此不再要求「强化任务绝不降级」，也不宣称首选独占；取舍见 `docs/adr/0002-strong-routing-degradation-boundary.md`。
+
+**一二层规则（Magpie 0.1.3521 起）：**
+
+| 机制 | 用途 | 落点 |
+| --- | --- | --- |
+| `intent-sure=0.5` | Work 含强化意图，用高于默认 0.4 的阈值，减少普通实现被低置信判成强化实现 | 仅 Work |
+| `when=message contains …` | 无需分类器的确定性覆盖；仅关键词匹配，不理解为语义 | Work 的显式强化；四个任务组的默认池前移 |
+| `use=a,b` | 一条规则内声明有序候选，b 在 a 失败后先于后续规则 | Work 及各任务组的次级目标 |
+| `use-effort=low` | 单条规则降低推理级别 | Work 闲聊规则 |
+
+任务组的两条规则顺序固定：`when=` 表达式在前、意图规则在后；意图规则仍带 `classifier=typesafe/jev-latest`。这四个任务组不含强化候选，`intent-sure=0.3` 仍用于降低漏匹配（上游 #5101 记录 0.4 下 16.5% 被拒）。不使用未验证的 `tokens=`、时间/目录/代理限定和 `pause=`。`when="effort >= …"` 与既有 `effort=` 条件在 CLI 回读中同形，规范不采用。两个阈值与真实请求分流效果尚未验证。
 
 ## 资源池和成本
 

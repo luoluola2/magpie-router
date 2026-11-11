@@ -13,6 +13,16 @@ from .contexts import context_windows
 
 PLAN_VERSION = 1
 GROUP_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
+WHEN_FIELDS = {"tokens", "effort", "agent", "subagent", "not", "message", "system", "last"}
+USE_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
+RULE_FRAGMENT = re.compile(
+    r'(?P<intent>intent\s+"(?:[^"\\]|\\.)*")'
+    r'|(?P<tokens>tokens\s*(?:>=|≥)\s*\d+[kKmM]?)'
+    r'|(?P<effort>effort\s*(?:>=|≥)\s*\w+|effort\s+on\b)'
+    r'|(?P<bool>images\b|compacting\b|compact\b)'
+    r'|(?P<when>(?:subagent|not\s+subagent)\b|agent\s+is(?:\s+not)?\s+\S+'
+    r'|(?:message|system|last)\s+(?:contains|does\s+not\s+contain|starts\s+with|matches)\s+"(?:[^"\\]|\\.)*")'
+)
 
 
 @dataclass(frozen=True)
@@ -26,10 +36,12 @@ class Member:
 
 @dataclass(frozen=True)
 class Rule:
-    """一条路由规则；条件使用稳定的键值序列表示。"""
+    """一条路由规则；条件、when= 表达式与推理覆盖分开保存。"""
 
     target: str
     conditions: tuple[tuple[str, str], ...]
+    expressions: tuple[str, ...] = ()
+    use_effort: str = ""
 
     @property
     def targets(self) -> tuple[str, ...]:
@@ -49,6 +61,7 @@ class RouteGroup:
     rules: tuple[Rule, ...] = ()
     classifier: str = ""
     context: int | None = None
+    intent_sure: str = ""
 
 
 @dataclass(frozen=True)
@@ -106,46 +119,99 @@ def normalize_conditions(raw: dict) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(normalized.items()))
 
 
-def _rule_conditions(body: str) -> tuple[tuple[str, str], ...]:
+def normalize_expressions(raw: object) -> tuple[str, ...]:
+    """校验 when= 表达式并统一顺序；不把解析失败当成空条件。"""
+    if not isinstance(raw, list):
+        raise MagpieError(f"when 表达式必须是列表：{raw}")
+    expressions = []
+    for value in raw:
+        if not isinstance(value, str) or not value.strip() or "\n" in value or "\r" in value:
+            raise MagpieError(f"无效的 when 表达式：{value}")
+        expression = " ".join(value.split())
+        if expression.split(None, 1)[0].lower() not in WHEN_FIELDS:
+            raise MagpieError(f"不支持的 when 字段：{value}")
+        expressions.append(expression)
+    if len(set(expressions)) != len(expressions):
+        raise MagpieError("when 表达式重复。")
+    return tuple(sorted(expressions))
+
+
+def normalize_use_effort(value: object) -> str:
+    """校验规则级推理覆盖；空值表示不覆盖。"""
+    if value in (None, ""):
+        return ""
+    if not isinstance(value, str) or value not in USE_EFFORTS:
+        raise MagpieError(f"不支持的 use-effort：{value}")
+    return value
+
+
+def _canonical_when(fragment: str) -> str:
+    """把 CLI 带引号的 when= 条件还原为规范里的单行表达式。"""
+    text = " ".join(fragment.split())
+    quoted = re.fullmatch(r'(.+?)\s+"((?:[^"\\]|\\.)*)"', text)
+    if quoted:
+        try:
+            value = json.loads('"' + quoted.group(2) + '"')
+        except json.JSONDecodeError as error:
+            raise MagpieError(f"无法识别 when 引号：{fragment}") from error
+        text = quoted.group(1) + " " + value
+    return text.replace("≥", ">=").replace("≤", "<=")
+
+
+def _rule_parts(body: str) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
     """完整解析 CLI 的 AND 正文；引号中的分隔符不作为条件边界。"""
+    # effort/tokens 的 when= 与既有条件在 CLI 中同形，规范暂不使用这两种表达式。
     remaining = body.strip()
-    conditions = {}
+    conditions: dict = {}
+    expressions: list[str] = []
     while remaining:
-        if remaining.startswith('intent "'):
+        matched = RULE_FRAGMENT.match(remaining)
+        if not matched:
+            raise MagpieError(f"无法完整识别规则：{body}")
+        fragment = matched.group(0)
+        kind = matched.lastgroup
+        if kind == "intent":
             try:
-                value, end = json.JSONDecoder().raw_decode(remaining[7:])
+                value, _ = json.JSONDecoder().raw_decode(fragment[fragment.index('"'):])
             except json.JSONDecodeError as error:
                 raise MagpieError(f"无法识别意图引号：{body}") from error
             key = "intent"
-            remaining = remaining[7 + end:]
+        elif kind == "tokens":
+            count = re.search(r"\d+[kKmM]?", fragment)
+            if count is None:
+                raise MagpieError(f"无法识别 token 条件：{body}")
+            key, value = "tokens", count.group(0)
+        elif kind == "effort":
+            level = re.search(r"\w+$", fragment)
+            if level is None:
+                raise MagpieError(f"无法识别推理条件：{body}")
+            key, value = "effort", ("on" if fragment.endswith(" on") else level.group(0))
+        elif kind == "bool":
+            key, value = ("images" if fragment == "images" else "compact"), True
         else:
-            matched = re.match(
-                r"(tokens\s*(?:>=|≥)\s*(\d+[kKmM]?)|"
-                r"effort\s*(?:>=|≥)\s*(\w+)|"
-                r"effort\s+on\b|images\b|compacting\b|compact\b)",
-                remaining,
-            )
-            if not matched:
-                raise MagpieError(f"无法完整识别规则：{body}")
-            fragment = matched.group(0)
-            if fragment.startswith("tokens"):
-                key, value = "tokens", matched.group(2)
-            elif fragment.startswith("effort"):
-                key, value = "effort", matched.group(3) or "on"
-            else:
-                key, value = ("images" if fragment == "images" else "compact"), True
-            remaining = remaining[matched.end():]
+            expression = _canonical_when(fragment)
+            if expression in expressions:
+                raise MagpieError(f"规则存在重复条件：{body}")
+            expressions.append(expression)
+            remaining = remaining[matched.end():].strip()
+            if remaining:
+                if not remaining.startswith("·"):
+                    raise MagpieError(f"无法识别条件分隔符：{body}")
+                remaining = remaining[1:].strip()
+                if not remaining:
+                    raise MagpieError(f"规则条件不完整：{body}")
+            continue
         if key in conditions:
             raise MagpieError(f"规则存在重复条件：{body}")
         conditions[key] = value
-        remaining = remaining.strip()
+        remaining = remaining[matched.end():].strip()
         if remaining:
             if not remaining.startswith("·"):
                 raise MagpieError(f"无法识别条件分隔符：{body}")
             remaining = remaining[1:].strip()
             if not remaining:
                 raise MagpieError(f"规则条件不完整：{body}")
-    return normalize_conditions(conditions)
+    return (normalize_conditions(conditions) if conditions else (), tuple(sorted(expressions)))
 
 
 def _parse_rules(reference: str, output: str) -> tuple[Rule, ...]:
@@ -165,10 +231,16 @@ def _parse_rules(reference: str, output: str) -> tuple[Rule, ...]:
         position = int(matched.group(1))
         if position != len(rules) + 1:
             raise MagpieError(f"{reference} 的规则序号不连续。")
-        targets = tuple(part.strip() for part in matched.group(3).split(","))
+        target_text = matched.group(3).strip()
+        effort = re.search(r"\s+at\s+(low|medium|high|xhigh|max)$", target_text)
+        use_effort = effort.group(1) if effort else ""
+        if effort:
+            target_text = target_text[:effort.start()]
+        targets = tuple(part.strip() for part in target_text.split(","))
         if any(not target or re.search(r"\s", target) for target in targets) or len(set(targets)) != len(targets):
             raise MagpieError(f"{reference} 存在无效或重复规则目标。")
-        rules.append(Rule(",".join(targets), _rule_conditions(matched.group(2).strip())))
+        conditions, expressions = _rule_parts(matched.group(2).strip())
+        rules.append(Rule(",".join(targets), conditions, expressions, use_effort))
     if re.search(r"^\s{2}rules\s+", output, re.MULTILINE) and not rules:
         raise MagpieError(f"{reference} 的规则区无法识别。")
     return tuple(rules)
@@ -215,6 +287,8 @@ def parse_group(reference: str, output: str) -> RouteGroup:
         _field(output, "stays"),
         _parse_rules(reference, output),
         _field(output, "classifier"),
+        None,
+        _field(output, "intent-sure"),
     )
 
 
@@ -227,8 +301,12 @@ def group_payload(group: RouteGroup) -> dict:
         "stays": group.stays,
         "classifier": group.classifier,
         "context": group.context,
+        "intent_sure": group.intent_sure,
         "members": [member.id for member in group.members],
-        "rules": [{"target": rule.target, "conditions": dict(rule.conditions)} for rule in group.rules],
+        "rules": [{
+            "target": rule.target, "conditions": dict(rule.conditions),
+            "expressions": list(rule.expressions), "use_effort": rule.use_effort,
+        } for rule in group.rules],
     }
 
 

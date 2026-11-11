@@ -27,11 +27,14 @@ def rule_arguments(rule: Rule, classifier: str = "") -> list[str]:
             arguments.append(f"{key}={value}")
         else:
             raise MagpieError(f"无法编译条件：{key}")
+    arguments.extend(f"when={expression}" for expression in rule.expressions)
+    if rule.use_effort:
+        arguments.append(f"use-effort={rule.use_effort}")
     if "intent" in dict(rule.conditions):
         if not classifier:
             raise MagpieError(f"{rule.target} 的意图规则缺少分类器。")
         arguments.append(f"classifier={classifier}")
-    if len(arguments) == 1:
+    if not rule.conditions and not rule.expressions:
         raise MagpieError("规则没有可应用的条件。")
     return arguments
 
@@ -66,6 +69,8 @@ def _mutate(desired: DesiredGroup, current: RouteGroup) -> None:
         settings.append("stays=" + desired.stays)
     if desired.context is not None and current.context != desired.context:
         settings.append(f"context={desired.context}")
+    if current.intent_sure != desired.intent_sure:
+        settings.append("intent-sure=" + desired.intent_sure)
     if settings:
         checked_magpie(["group", "set", short, *settings])
     if replace_rules:
@@ -87,6 +92,7 @@ def restore_group(before: RouteGroup) -> None:
         settings.append("stays=" + before.stays)
     if before.context is not None:
         settings.append(f"context={before.context}")
+    settings.append("intent-sure=" + before.intent_sure)
     checked_magpie(["group", "set", short, *settings])
     for rule in before.rules:
         checked_magpie(["group", "rule", "add", short, *rule_arguments(rule, before.classifier)])
@@ -98,8 +104,11 @@ def _payload(desired: DesiredGroup) -> dict:
     return {
         "id": desired.id, "routing": desired.routing, "stays": desired.stays,
         "members": list(desired.members), "classifier": desired.classifier,
-        "context": desired.context,
-        "rules": [{"target": rule.target, "conditions": dict(rule.conditions)} for rule in desired.rules],
+        "context": desired.context, "intent_sure": desired.intent_sure,
+        "rules": [{
+            "target": rule.target, "conditions": dict(rule.conditions),
+            "expressions": list(rule.expressions), "use_effort": rule.use_effort,
+        } for rule in desired.rules],
     }
 
 
@@ -140,6 +149,7 @@ def apply_group(
                 ("routing", actual.routing, desired.routing),
                 ("stays", actual.stays, desired.stays),
                 ("classifier", actual.classifier, desired.classifier),
+                ("意图置信度", actual.intent_sure, desired.intent_sure),
                 ("rules", actual.rules, desired.rules),
                 ("context", actual.context, desired.context if desired.context is not None else actual.context),
             )

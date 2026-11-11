@@ -13,10 +13,10 @@
 
 供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。 固定订阅与按量现金成本见 `cost-model.md`。 路由调度总表见 `routing-overview.md`，每次套餐、模型、候选或路由变更同步维护。
 
-当前期望路由见 `routing.json`，版本为 v3：Work、任务入口、资源池和模型逐层引用。应用前用 `python -m magpie_router route diff` 查看差异；`group/sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
+当前期望路由见 `routing.json`，版本为 v4：`entry-work`、任务入口、资源池和模型逐层引用。应用前用 `python -m magpie_router route diff` 查看差异；`group/task-sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
 
-统一兜底是 `group/fallback`：只能包含具体模型，各二级任务组末位引用，Work 不直连。先应用兜底组再应用任务组；配置和成本说明见 `routing-overview.md`。
+统一兜底是 `group/pool-fallback`：只能包含具体模型，各任务组（SOTA 与强化实现除外）末位引用，Work 不直连。按依赖先应用资源池，再应用任务组与入口；配置和成本说明见 `routing-overview.md`。
 
-公布上下文与实现能力下限分别维护：`context` 表示客户端可见容量；Implement 的主力准入目标以 DeepSeek V4.1 Flash:max 的实现能力为基准，不由窗口大小推导。跨供应商 Fallback 仍属于允许降级的恢复路径。
+公布上下文与实现能力基准分别维护：`context` 表示客户端可见容量；`pool-build` 的主力准入目标由 Terra 与 OpenCode Go Flash:max 承担，不由窗口大小推导。跨供应商 Fallback 与强化入口的普通实现回退均属于允许降级的恢复路径，不再要求所有自动候选满足严格能力下限。
 
 通用子代理职责与部署状态见 `subagents/README.md`；角色定义默认任务入口，是否实际写入模型字段以各客户端部署状态为准，不维护组内模型选择。

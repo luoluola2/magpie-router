@@ -1,44 +1,117 @@
-<mxfile host="app.diagrams.net" modified="2026-11-10T00:00:00.000Z" agent="magpie-router" version="24.7.17">
-  <diagram id="routing-blueprint" name="路由总蓝图">
-    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
-      <root>
-        <mxCell id="0"/>
-        <mxCell id="1" parent="0"/>
-        <mxCell id="title" value="Magpie Router · 四层路由总蓝图" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#17233A;" vertex="1" parent="1"><mxGeometry x="60" y="30" width="1000" height="45" as="geometry"/></mxCell>
-        <mxCell id="status" value="目标蓝图 v4 · 尚未部署&#xa;Jev 两级嵌套组创建被 Magpie 拒绝；实际配置以 Magpie 为准" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D89E20;fontColor=#704D00;fontSize=14;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="1120" y="30" width="600" height="65" as="geometry"/></mxCell>
-        <mxCell id="l1" value="第一层  入口" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#E8F0FE;swimlaneFillColor=#F8FAFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontStyle=1;fontSize=16;" vertex="1" parent="1"><mxGeometry x="60" y="120" width="280" height="760" as="geometry"/></mxCell>
-        <mxCell id="work" value="入口 · 总调度&#xa;entry-work&#xa;&#xa;压缩 → 任务意图 → 图片 → 默认" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4E4FF;strokeColor=#6088CC;fontColor=#173660;fontSize=15;spacing=10;" vertex="1" parent="l1"><mxGeometry x="25" y="210" width="230" height="115" as="geometry"/></mxCell>
-        <mxCell id="role" value="客户端 / 主代理&#xa;任务理解、委派、结果验证" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontSize=14;" vertex="1" parent="l1"><mxGeometry x="25" y="90" width="230" height="75" as="geometry"/></mxCell>
-        <mxCell id="control" value="控制面&#xa;仓库策略 + SQLite 观测&#xa;按需评估 → 授权 → 逐组应用 → 回读" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontSize=13;spacing=8;" vertex="1" parent="l1"><mxGeometry x="25" y="515" width="230" height="105" as="geometry"/></mxCell>
-        <mxCell id="l2" value="第二层  任务入口" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#E9F7F3;swimlaneFillColor=#F9FDFC;strokeColor=#70B5A1;fontColor=#245C50;fontStyle=1;fontSize=16;" vertex="1" parent="1"><mxGeometry x="390" y="120" width="330" height="760" as="geometry"/></mxCell>
-        <mxCell id="tasks1" value="日常任务&#xa;&#xa;task-general · 通用问答&#xa;task-architect · 架构设计&#xa;task-implement · 实现&#xa;task-review · 评审&#xa;task-tests · 测试&#xa;task-vision · 视觉理解&#xa;task-compact · 摘要整理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#70B5A1;fontColor=#224D45;fontSize=14;align=left;spacing=14;" vertex="1" parent="l2"><mxGeometry x="25" y="70" width="280" height="255" as="geometry"/></mxCell>
-        <mxCell id="strong" value="task-implement-strong&#xa;强化实现 · 自动命中&#xa;无弱能力回退" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;fontStyle=1;" vertex="1" parent="l2"><mxGeometry x="25" y="360" width="280" height="85" as="geometry"/></mxCell>
-        <mxCell id="classify" value="task-classify · 意图分类&#xa;辅助 Work 分类" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4FF;strokeColor=#6D9FC8;fontColor=#245177;fontSize=14;" vertex="1" parent="l2"><mxGeometry x="25" y="475" width="280" height="70" as="geometry"/></mxCell>
-        <mxCell id="sota" value="task-sota · SOTA&#xa;仅手动选择" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;fontStyle=1;" vertex="1" parent="l2"><mxGeometry x="25" y="575" width="280" height="70" as="geometry"/></mxCell>
-        <mxCell id="l3" value="第三层  资源池" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#F1EBFB;swimlaneFillColor=#FCFAFF;strokeColor=#A793C9;fontColor=#564177;fontStyle=1;fontSize=16;" vertex="1" parent="1"><mxGeometry x="770" y="120" width="350" height="760" as="geometry"/></mxCell>
-        <mxCell id="pools" value="任务能力池&#xa;&#xa;pool-general · 通用处理&#xa;pool-reason · 推理分析&#xa;pool-build · 实现&#xa;pool-build-reserve · 实现后备&#xa;pool-tests · 常规测试&#xa;pool-vision · 视觉理解&#xa;pool-compact · 摘要整理&#xa;pool-fallback · 故障恢复" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A793C9;fontColor=#4A3D62;fontSize=14;align=left;spacing=14;" vertex="1" parent="l3"><mxGeometry x="25" y="70" width="300" height="255" as="geometry"/></mxCell>
-        <mxCell id="pstrong" value="pool-build-strong&#xa;强化实现 · 固定 xhigh" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;" vertex="1" parent="l3"><mxGeometry x="25" y="360" width="300" height="85" as="geometry"/></mxCell>
-        <mxCell id="pclass" value="pool-classify · 意图分类&#xa;作为另一组成员时被拒绝" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D89E20;fontColor=#704D00;fontSize=14;" vertex="1" parent="l3"><mxGeometry x="25" y="475" width="300" height="70" as="geometry"/></mxCell>
-        <mxCell id="psota" value="pool-sota · 手动资源池" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;" vertex="1" parent="l3"><mxGeometry x="25" y="575" width="300" height="70" as="geometry"/></mxCell>
-        <mxCell id="l4" value="第四层  供应商模型路径" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#F3F4F6;swimlaneFillColor=#FFFFFF;strokeColor=#A5ABB5;fontColor=#45515F;fontStyle=1;fontSize=16;" vertex="1" parent="1"><mxGeometry x="1170" y="120" width="550" height="760" as="geometry"/></mxCell>
-        <mxCell id="models" value="日常候选&#xa;&#xa;WorkBuddy · Hy4 / DeepSeek Flash&#xa;OpenCode Go · DeepSeek Flash&#xa;Codex · Terra / Sol / Luna&#xa;Grok · Grok 4.7&#xa;OpenRouter · 指定免费模型&#xa;OpenCode Zen Free · 指定免费模型&#xa;Our Free Model · 指定免费模型&#xa;&#xa;同名路径分别维护容量、能力和价格证据" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A5ABB5;fontColor=#45515F;fontSize=14;align=left;spacing=14;" vertex="1" parent="l4"><mxGeometry x="25" y="70" width="500" height="255" as="geometry"/></mxCell>
-        <mxCell id="modelstrong" value="Codex · Sol:xhigh&#xa;能力下限链；不可用或容量不足时失败" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;" vertex="1" parent="l4"><mxGeometry x="25" y="360" width="500" height="85" as="geometry"/></mxCell>
-        <mxCell id="jev" value="TypeSafe · Jev Latest&#xa;意图判断，不执行实际工作" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D89E20;fontColor=#704D00;fontSize=14;" vertex="1" parent="l4"><mxGeometry x="25" y="475" width="500" height="70" as="geometry"/></mxCell>
-        <mxCell id="sotamodels" value="Codex · Astra → 鱼鱼 · Opus&#xa;不进入日常自动路径" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;" vertex="1" parent="l4"><mxGeometry x="25" y="575" width="500" height="70" as="geometry"/></mxCell>
-        <mxCell id="e01" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#6587BB;strokeWidth=2;" edge="1" parent="1" source="role" target="work"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#6488B5;strokeWidth=2;" edge="1" parent="1" source="work" target="tasks1"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" edge="1" parent="1" source="work" target="strong"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e14" value="分类辅助" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;fontColor=#704D00;fontSize=12;" edge="1" parent="1" source="work" target="classify"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#8D79AF;strokeWidth=2;" edge="1" parent="1" source="tasks1" target="pools"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" edge="1" parent="1" source="strong" target="pstrong"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;" edge="1" parent="1" source="classify" target="pclass"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e26" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#CB8178;" edge="1" parent="1" source="sota" target="psota"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#9098A4;strokeWidth=2;" edge="1" parent="1" source="pools" target="models"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e35" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" edge="1" parent="1" source="pstrong" target="modelstrong"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e36" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;" edge="1" parent="1" source="pclass" target="jev"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="e37" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#CB8178;" edge="1" parent="1" source="psota" target="sotamodels"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="legend" value="实线：目标业务路由     虚线：目标分类辅助链，当前 Magpie 拒绝将决策池作为组成员&#xa;本图为目标蓝图，不代表当前部署；具体成员、规则和实时差异以策略文件及 Magpie 回读为准。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F7FA;strokeColor=#CCD4DE;fontColor=#45515F;fontSize=14;align=left;spacing=12;" vertex="1" parent="1"><mxGeometry x="60" y="915" width="1660" height="75" as="geometry"/></mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e">
+    <diagram id="routing-blueprint" name="路由总蓝图">
+        <mxGraphModel dx="522" dy="342" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#17233A;" value="Magpie Router · 四层路由总蓝图" vertex="1">
+                    <mxGeometry height="45" width="1000" x="60" y="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1" parent="1" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#E8F0FE;swimlaneFillColor=#F8FAFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontStyle=1;fontSize=16;" value="第一层  入口" vertex="1">
+                    <mxGeometry height="760" width="280" x="60" y="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="work" parent="l1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4E4FF;strokeColor=#6088CC;fontColor=#173660;fontSize=15;spacing=10;" value="入口 · 总调度&#xa;entry-work&#xa;&#xa;压缩 → 强化 → 任务意图 → 图片 → 默认" vertex="1">
+                    <mxGeometry height="115" width="230" x="25" y="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="role" parent="l1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontSize=14;" value="客户端 / 主代理&#xa;任务理解、委派、结果验证" vertex="1">
+                    <mxGeometry height="75" width="230" x="25" y="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="control" parent="l1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8AAAE5;fontColor=#294A7A;fontSize=13;spacing=8;" value="控制面&#xa;仓库策略 + SQLite 观测&#xa;退役组 ≠ 未知组&#xa;按需评估 → 授权 → 应用 → 回读" vertex="1">
+                    <mxGeometry height="105" width="230" x="25" y="580" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2" parent="1" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#E9F7F3;swimlaneFillColor=#F9FDFC;strokeColor=#70B5A1;fontColor=#245C50;fontStyle=1;fontSize=16;" value="第二层  任务入口" vertex="1">
+                    <mxGeometry height="760" width="330" x="390" y="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="tasks1" parent="l2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#70B5A1;fontColor=#224D45;fontSize=14;align=left;spacing=14;" value="日常任务&#xa;&#xa;task-general · 通用问答&#xa;task-architect · 架构设计&#xa;task-implement · 实现&#xa;task-review · 评审&#xa;task-tests · 测试&#xa;task-vision · 视觉理解&#xa;task-compact · 摘要整理" vertex="1">
+                    <mxGeometry height="255" width="280" x="25" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="strong" parent="l2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;fontStyle=1;" value="task-implement-strong&#xa;强化实现 · 自动命中&#xa;失败显式回退普通实现" vertex="1">
+                    <mxGeometry height="85" width="280" x="25" y="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="classify" parent="l2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F4FF;strokeColor=#6D9FC8;fontColor=#245177;fontSize=14;" value="辅助控制引用&#xa;Work 与任务入口调用分类器" vertex="1">
+                    <mxGeometry height="70" width="280" x="25" y="475" as="geometry"/>
+                </mxCell>
+                <mxCell id="sota" parent="l2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;fontStyle=1;" value="task-sota · SOTA&#xa;仅手动选择" vertex="1">
+                    <mxGeometry height="70" width="280" x="25" y="575" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3" parent="1" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#F1EBFB;swimlaneFillColor=#FCFAFF;strokeColor=#A793C9;fontColor=#564177;fontStyle=1;fontSize=16;" value="第三层  资源池" vertex="1">
+                    <mxGeometry height="760" width="350" x="770" y="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="pools" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A793C9;fontColor=#4A3D62;fontSize=14;align=left;spacing=14;" value="任务能力池&#xa;&#xa;pool-general · 通用处理&#xa;pool-reason · 推理分析&#xa;pool-build · 实现&#xa;pool-build-reserve · 实现后备&#xa;pool-tests · 常规测试&#xa;pool-vision · 视觉理解&#xa;pool-compact · 摘要整理&#xa;pool-fallback · 故障恢复" vertex="1">
+                    <mxGeometry height="255" width="300" x="25" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="pstrong" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;" value="pool-build-strong&#xa;强化实现 · 固定 xhigh" vertex="1">
+                    <mxGeometry height="85" width="300" x="25" y="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="pclass" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D89E20;fontColor=#704D00;fontSize=14;" value="Magpie 原生分类接口&#xa;辅助引用，不是业务资源池" vertex="1">
+                    <mxGeometry height="70" width="300" x="25" y="475" as="geometry"/>
+                </mxCell>
+                <mxCell id="psota" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;" value="pool-sota · SOTA池" vertex="1">
+                    <mxGeometry height="70" width="300" x="25" y="575" as="geometry"/>
+                </mxCell>
+                <mxCell id="l4" parent="1" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#F3F4F6;swimlaneFillColor=#FFFFFF;strokeColor=#A5ABB5;fontColor=#45515F;fontStyle=1;fontSize=16;" value="第四层  供应商模型路径" vertex="1">
+                    <mxGeometry height="760" width="550" x="1170" y="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="models" parent="l4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A5ABB5;fontColor=#45515F;fontSize=14;align=left;spacing=14;" value="日常候选&#xa;&#xa;WorkBuddy · Hy4 / DeepSeek Flash&#xa;OpenCode Go · DeepSeek Flash&#xa;Codex · Terra / Sol / Luna&#xa;Grok · Grok 4.7&#xa;OpenRouter · 指定免费模型&#xa;OpenCode Zen Free · 指定免费模型&#xa;Our Free Model · 指定免费模型&#xa;&#xa;同名路径分别维护容量、能力和价格证据" vertex="1">
+                    <mxGeometry height="255" width="500" x="25" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="modelstrong" parent="l4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;" value="Codex · Sol:xhigh&#xa;强化首选；失败后按组内顺序降级" vertex="1">
+                    <mxGeometry height="85" width="500" x="25" y="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="jev" parent="l4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D89E20;fontColor=#704D00;fontSize=14;" value="TypeSafe · Jev Latest&#xa;意图判断，不执行实际工作" vertex="1">
+                    <mxGeometry height="70" width="500" x="25" y="475" as="geometry"/>
+                </mxCell>
+                <mxCell id="sotamodels" parent="l4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBE9;strokeColor=#CB8178;fontColor=#813D36;fontSize=14;" value="Codex · Astra → 鱼鱼 · Opus&#xa;不进入日常自动路径" vertex="1">
+                    <mxGeometry height="70" width="500" x="25" y="575" as="geometry"/>
+                </mxCell>
+                <mxCell id="e01" edge="1" parent="1" source="role" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#6587BB;strokeWidth=2;" target="work">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" edge="1" parent="1" source="work" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#6488B5;strokeWidth=2;" target="tasks1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e13" edge="1" parent="1" source="work" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" target="strong" value="强化意图／文字 → 普通实现">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="200" y="520"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e23" edge="1" parent="1" source="tasks1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#8D79AF;strokeWidth=2;" target="pools">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e24" edge="1" parent="1" source="strong" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" target="pstrong">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e25" edge="1" parent="1" source="classify" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;" target="pclass">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e26" edge="1" parent="1" source="sota" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#CB8178;" target="psota">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e34" edge="1" parent="1" source="pools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#9098A4;strokeWidth=2;" target="models">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e35" edge="1" parent="1" source="pstrong" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#55A484;strokeWidth=2;" target="modelstrong">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e36" edge="1" parent="1" source="pclass" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;" target="jev">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e37" edge="1" parent="1" source="psota" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;endFill=1;strokeColor=#CB8178;" target="sotamodels">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F7FA;strokeColor=#CCD4DE;fontColor=#45515F;fontSize=14;align=left;spacing=12;" value="实线：业务路由     虚线：分类辅助&#xa;Jev 直接作为原生分类器；规则只提升首选，Work 命中强化后仍可能回退其他任务，已显式声明普通实现为次级候选。" vertex="1">
+                    <mxGeometry height="75" width="1660" x="60" y="915" as="geometry"/>
+                </mxCell>
+                <mxCell id="e14" edge="1" parent="1" source="work" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;endArrow=block;endFill=1;strokeColor=#B1882E;fontColor=#704D00;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="classify" value="分类辅助">
+                    <mxGeometry relative="1" x="-0.325" y="30" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="170" y="495.9999999999999" as="sourcePoint"/>
+                        <mxPoint x="410" y="703.5000000000001" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>

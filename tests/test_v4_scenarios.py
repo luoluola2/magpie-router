@@ -8,16 +8,23 @@ from magpie_router.desired import load_spec
 from magpie_router.rollout import rule_arguments
 
 
-def selected_target(group, *, matched_intent=None, images=False, compact=False):
+def selected_target(group, *, matched_intent=None, images=False, compact=False, message=""):
     """按固定分类结果检查策略中的规则顺序，不调用 Magpie 或 Jev。"""
     for rule in group.rules:
         conditions = dict(rule.conditions)
-        if conditions.get("compact") == "true" and compact:
-            return rule.target
-        if conditions.get("intent") == matched_intent and matched_intent is not None:
-            return rule.target
-        if conditions.get("images") == "true" and images:
-            return rule.target
+        if rule.expressions and any(
+            expression.rsplit(" ", 1)[-1] not in message
+            for expression in rule.expressions
+        ):
+            continue
+        if conditions.get("compact") == "true" and not compact:
+            continue
+        if "intent" in conditions and conditions["intent"] != matched_intent:
+            continue
+        if conditions.get("images") == "true" and not images:
+            continue
+        if conditions or rule.expressions:
+            return rule.targets[0]
     return group.members[0]
 
 
@@ -41,6 +48,7 @@ class V4ScenarioTests(unittest.TestCase):
             ("提取要点", "group/task-compact"),
             ("解释技术概念", "group/task-general"),
             ("寒暄、随口交流", "group/task-general"),
+            ("跨模块接口或数据契约重构", "group/task-implement-strong"),
         ]
         for fragment, target in scenarios:
             matches = [
@@ -51,6 +59,7 @@ class V4ScenarioTests(unittest.TestCase):
                 self.assertEqual(len(matches), 1)
                 self.assertEqual(selected_target(work, matched_intent=matches[0], images=True), target)
         self.assertEqual(selected_target(work, images=True, compact=True), "group/task-compact")
+        self.assertEqual(selected_target(work, message="请强化实现这个功能"), "group/task-implement-strong")
 
     def test_classifier_failure_uses_deterministic_rules_or_default(self):
         """分类失败或无匹配时保留图片和默认路径，不声称验证了远端超时。"""
@@ -72,12 +81,31 @@ class V4ScenarioTests(unittest.TestCase):
             group = self.groups[reference]
             with self.subTest(reference=reference):
                 self.assertEqual(group.classifier, "typesafe/jev-latest")
-                self.assertEqual(len(group.rules), 1)
-                rule = group.rules[0]
+                self.assertEqual(len(group.rules), 2)
+                self.assertEqual(group.intent_sure, "0.3")
+                expression_rule, rule = group.rules
+                self.assertEqual(len(expression_rule.expressions), 1)
                 self.assertNotEqual(group.members[0], target)
                 self.assertEqual(selected_target(group), group.members[0])
                 self.assertEqual(selected_target(group, matched_intent=dict(rule.conditions)["intent"]), target)
                 self.assertIn("classifier=typesafe/jev-latest", rule_arguments(rule, group.classifier))
+
+    def test_new_rule_conditions_compile_and_strong_chain_falls_back(self):
+        """新条件编译为 CLI 参数，强化规则显式声明普通实现为回退。"""
+        work = self.groups["group/entry-work"]
+        self.assertIn("group/task-implement-strong", work.members)
+        self.assertEqual(work.intent_sure, "0.5")
+        strong_rules = [rule for rule in work.rules if "group/task-implement-strong" in rule.targets]
+        self.assertEqual(len(strong_rules), 2)
+        for rule in strong_rules:
+            self.assertEqual(rule.targets, ("group/task-implement-strong", "group/task-implement"))
+        override = next(rule for rule in strong_rules if rule.expressions)
+        self.assertIn("when=message contains 强化实现", rule_arguments(override, work.classifier))
+        chitchat = next(rule for rule in work.rules if rule.use_effort)
+        self.assertEqual(chitchat.use_effort, "low")
+        self.assertIn("use-effort=low", rule_arguments(chitchat, work.classifier))
+        task = self.groups["group/task-general"]
+        self.assertIn(f"when={task.rules[0].expressions[0]}", rule_arguments(task.rules[0], task.classifier))
 
     @patch("magpie_router.cli.sync_and_diff")
     def test_diff_exit_distinguishes_retired_and_unknown(self, diff):

@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .magpie import MagpieError, checked_magpie
-from .routing import GROUP_ID, RouteGroup, Rule, normalize_conditions
+from .routing import (
+    GROUP_ID, RouteGroup, Rule, normalize_conditions, normalize_expressions,
+    normalize_use_effort,
+)
 
 SPEC_VERSION = "v3"
 EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
@@ -35,6 +38,7 @@ class DesiredGroup:
     name: str = ""
     context: int | None = None
     layer: str = ""
+    intent_sure: str = ""
 
 
 @dataclass(frozen=True)
@@ -83,7 +87,10 @@ def load_spec(path: Path | None = None) -> DesiredSpec:
 
 def _desired_group(raw: dict) -> DesiredGroup:
     """校验组字段、成员和规则，组合条件均为 AND。"""
-    if not isinstance(raw, dict) or set(raw) - {"id", "name", "routing", "stays", "members", "rules", "classifier", "context", "layer"}:
+    if not isinstance(raw, dict) or set(raw) - {
+        "id", "name", "routing", "stays", "members", "rules", "classifier",
+        "context", "layer", "intent-sure",
+    }:
         raise MagpieError("路由组结构或字段不受支持。")
     reference = _reference(raw.get("id"))
     if not reference.startswith("group/"):
@@ -103,12 +110,18 @@ def _desired_group(raw: dict) -> DesiredGroup:
         raise MagpieError(f"{reference} 的 rules 必须是列表。")
     rules = []
     for item in raw_rules:
-        if not isinstance(item, dict) or set(item) != {"use", "when"} or not isinstance(item["use"], str):
+        allowed = {"use", "when", "expressions", "use-effort"}
+        if not isinstance(item, dict) or not {"use", "when"} <= set(item) or set(item) - allowed or not isinstance(item["use"], str):
             raise MagpieError(f"{reference} 的规则无效。")
         targets = tuple(_reference(target.strip()) for target in item["use"].split(","))
         if len(targets) != len(set(targets)):
             raise MagpieError(f"{reference} 的规则目标重复。")
-        rules.append(Rule(",".join(targets), normalize_conditions(item["when"])))
+        conditions = normalize_conditions(item["when"]) if item["when"] else ()
+        expressions = normalize_expressions(item.get("expressions", []))
+        use_effort = normalize_use_effort(item.get("use-effort", ""))
+        if not conditions and not expressions:
+            raise MagpieError(f"{reference} 的规则没有条件。")
+        rules.append(Rule(",".join(targets), conditions, expressions, use_effort))
     classifier = raw.get("classifier", "")
     if classifier:
         _reference(classifier)
@@ -120,6 +133,15 @@ def _desired_group(raw: dict) -> DesiredGroup:
     context = raw.get("context")
     if "context" in raw and (type(context) is not int or context <= 0):
         raise MagpieError(f"{reference} 的 context 必须是正整数 token 数。")
+    intent_sure = raw.get("intent-sure", "")
+    if intent_sure != "":
+        try:
+            sure = float(intent_sure)
+        except (TypeError, ValueError) as error:
+            raise MagpieError(f"{reference} 的 intent-sure 无效。") from error
+        if isinstance(intent_sure, bool) or not 0 <= sure <= 1:
+            raise MagpieError(f"{reference} 的 intent-sure 须在 0 到 1 之间。")
+        intent_sure = str(intent_sure)
     return DesiredGroup(
         raw["id"],
         raw.get("routing", ""),
@@ -130,6 +152,7 @@ def _desired_group(raw: dict) -> DesiredGroup:
         name,
         context,
         raw.get("layer", ""),
+        intent_sure,
     )
 
 
@@ -276,8 +299,15 @@ def _validate_v4(spec: DesiredSpec) -> None:
         raise MagpieError("强化实现不能回退到普通池。")
     if groups["group/pool-build-strong"].members != ("codex/gpt-6.1-sol:xhigh",):
         raise MagpieError("强化池必须固定 Sol 的 xhigh 推理。")
-    if "group/task-implement-strong" in groups["group/entry-work"].members:
-        raise MagpieError("Work 规则失败时会回退其他成员，不能保证强化任务不降级。")
+    work = groups["group/entry-work"]
+    strong = "group/task-implement-strong"
+    if strong not in work.members:
+        raise MagpieError("v4 强化实现必须加入 Work 成员。")
+    strong_rules = [rule for rule in work.rules if strong in rule.targets]
+    if not strong_rules:
+        raise MagpieError("Work 必须有命中强化实现的规则。")
+    if any(rule.targets[0] != strong or "group/task-implement" not in rule.targets[1:] for rule in strong_rules):
+        raise MagpieError("强化规则必须以强化入口为首选，并显式回退普通实现。")
     application_order(spec)
 
 
@@ -355,6 +385,7 @@ def same_configuration(actual: RouteGroup, desired: DesiredGroup) -> bool:
         and actual.routing == desired.routing
         and actual.stays == desired.stays
         and actual.classifier == desired.classifier
+        and actual.intent_sure == desired.intent_sure
         and [member.id for member in actual.members] == list(desired.members)
         and actual.rules == desired.rules
         and (desired.context is None or actual.context == desired.context)
@@ -380,6 +411,7 @@ def diff_lines(actual_groups: list[RouteGroup], spec: DesiredSpec) -> list[str]:
             ("routing", actual.routing, desired.routing),
             ("stays", actual.stays, desired.stays),
             ("分类器", actual.classifier, desired.classifier),
+            ("意图置信度", actual.intent_sure, desired.intent_sure),
             ("规则", actual.rules, desired.rules),
             ("公布上下文", actual.context, desired.context if desired.context is not None else actual.context),
         ):

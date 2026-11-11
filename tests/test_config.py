@@ -13,7 +13,10 @@ from magpie_router.desired import (
 )
 from magpie_router.magpie import MagpieError
 from magpie_router.rollout import apply_group, apply_spec, rule_arguments
-from magpie_router.routing import Member, RouteGroup, Rule, normalize_conditions, parse_group
+from magpie_router.routing import (
+    Member, RouteGroup, Rule, normalize_conditions, normalize_expressions,
+    normalize_use_effort, parse_group,
+)
 from magpie_router.store import catalog_completeness, initialize, latest_completeness, sync_observation
 
 
@@ -26,6 +29,19 @@ DETAIL = """  Architect  group/architect
             2 effort ≥ xhigh → codex/gpt-6.1-sol
             3 intent "评审" → opencode-go/kimi-k3.1-pro
   classifier group/classify  tells which intent a message is
+"""
+
+NEW_DETAIL = """  Probe  group/probe
+  routing   order
+  stays     turn
+  models    1 workbuddy/hy4free
+            2 codex/gpt-6-luna:low
+  rules     1 effort ≥ xhigh → workbuddy/hy4free
+            2 subagent · message contains "提交" → codex/gpt-6-luna:low, workbuddy/hy4free
+            3 intent "a quick question" → workbuddy/hy4free at low
+            4 system contains "foo" → codex/gpt-6-luna:low
+  intent-sure 0.3  how sure the classifier must be of an intent for it to count
+  classifier typesafe/jev-latest  tells which intent a message is
 """
 
 
@@ -101,6 +117,27 @@ class SpecTests(unittest.TestCase):
             parse_group("group/architect", DETAIL.replace("images", "quota < 10"))
         with self.assertRaises(MagpieError):
             normalize_conditions({"tokens": "400k", "unknown": "1"})
+
+    def test_parse_when_expressions_use_effort_and_intent_sure(self):
+        """新版 CLI 的 when=、use-effort 和组级阈值可完整回读。"""
+        parsed = parse_group("group/probe", NEW_DETAIL)
+        self.assertEqual(parsed.intent_sure, "0.3")
+        self.assertEqual(parsed.classifier, "typesafe/jev-latest")
+        self.assertEqual(parsed.rules[0].conditions, (("effort", "xhigh"),))
+        self.assertEqual(parsed.rules[1].conditions, ())
+        self.assertEqual(parsed.rules[1].expressions, ("message contains 提交", "subagent"))
+        self.assertEqual(parsed.rules[1].targets, ("codex/gpt-6-luna:low", "workbuddy/hy4free"))
+        self.assertEqual(parsed.rules[2].use_effort, "low")
+        self.assertEqual(parsed.rules[3].expressions, ("system contains foo",))
+        self.assertEqual(rule_arguments(parsed.rules[1]), [
+            "use=codex/gpt-6-luna:low,workbuddy/hy4free",
+            "when=message contains 提交", "when=subagent",
+        ])
+        self.assertIn("use-effort=low", rule_arguments(parsed.rules[2], parsed.classifier))
+        with self.assertRaises(MagpieError):
+            normalize_expressions(["quota < 10"])
+        with self.assertRaises(MagpieError):
+            normalize_use_effort("ultra")
 
     def test_rule_arguments_and_scenarios(self):
         """规则命令包含 effort 和意图分类器；离线覆盖关键分流场景。"""
