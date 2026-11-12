@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 通用问答 `task-general` | general → reason → fallback | 技术推导、复杂解释与多因素比较优先 reason |
 | 架构 `task-architect` | reason → build → fallback | 代码示例、可行性验证和具体落地步骤优先 build |
-| 实现 `task-implement` | build → build-reserve → fallback | 常规实现 |
+| 实现 `task-implement` | build → fallback | 常规实现 |
 | 强化实现 `task-implement-strong` | build-strong | 仅 Sol:xhigh；自身不接普通兜底，Work 命中后允许降级到 `task-implement` |
 | 评审 `task-review` | reason → build → fallback | 实际代码行为与调用链优先 build |
 | 测试 `task-tests` | tests → build → fallback | 集成、端到端及跨组件测试优先 build |
@@ -37,7 +37,7 @@ Work 的 12 条规则依次覆盖压缩、显式强化文字、强化意图、�
 
 成员顺序、推理强度、上下文与规则文本以 `routing.json` 为准。`pool-general` 面向日常通用任务；`pool-fallback` 面向跨任务故障恢复，两者少量复用模型但用途不同。免费候选的路径证据和复核步骤见 `free-models.md`。
 
-`pool-build` 为 Terra 和 OpenCode Go Flash:max；`pool-build-reserve` 为 WorkBuddy Flash:max。`pool-build-strong` 仅包含 Sol:xhigh，不能降级到普通模型。OpenCode Go 只使用 DeepSeek V4.1 Flash。`pool-sota` 手动使用 Astra 与鱼鱼 Opus，官方按量 DeepSeek 不进入自动路径。
+`pool-build` 依次包含 Terra、WorkBuddy Flash:max 和 OpenCode Go Flash:max，按 smart 调度；原 `pool-build-reserve` 已并入本池并退役。`pool-build-strong` 仅包含 Sol:xhigh，不能降级到普通模型。OpenCode Go 只使用 DeepSeek V4.1 Flash。`pool-sota` 手动使用 Astra 与鱼鱼 Opus，官方按量 DeepSeek 不进入自动路径。
 
 固定订阅与按量成本分别评估。免费、赠费、未知价格及订阅窗口不合并为单一分数；实际成本依据见 `cost-model.md`、`providers.md`。
 

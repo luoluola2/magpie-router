@@ -63,6 +63,22 @@ class LayerTests(unittest.TestCase):
         self.assertTrue(any(rule.expressions for group in spec.groups if group.layer == "task" for rule in group.rules))
         self.assertNotIn("group/task-sota", work.members)
 
+    def test_v4_reserve_pool_merged_into_build_and_retired(self):
+        """实现后备并入主力池并登记退役；WorkBuddy 排在 OpenCode Go 之前。"""
+        spec = load_spec()
+        groups = {group.id: group for group in spec.groups}
+        self.assertNotIn("group/pool-build-reserve", groups)
+        self.assertEqual(groups["group/pool-build"].members, (
+            "codex/gpt-6.1-terra", "workbuddy/deepseek-v4.1-flash:max",
+            "opencode-go/deepseek-v4.1-flash:max",
+        ))
+        self.assertEqual(groups["group/task-implement"].members,
+                         ("group/pool-build", "group/pool-fallback"))
+        actual = [RouteGroup("pool-build-reserve", "Reserve",
+                             (Member("workbuddy/deepseek-v4.1-flash:max", True, ""),),
+                             "order", "turn")]
+        self.assertIn("RETIRED group/pool-build-reserve", diff_lines(actual, spec))
+
     def test_retired_and_unknown_groups_remain_distinct(self):
         """已知退役组阻止完整匹配，未知组只报告且不能推断应删除。"""
         spec = load_spec()

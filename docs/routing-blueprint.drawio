@@ -37,7 +37,7 @@
                 <mxCell id="l3" parent="1" style="swimlane;html=1;startSize=40;horizontal=1;rounded=1;fillColor=#F1EBFB;swimlaneFillColor=#FCFAFF;strokeColor=#A793C9;fontColor=#564177;fontStyle=1;fontSize=16;" value="第三层  资源池" vertex="1">
                     <mxGeometry height="760" width="350" x="770" y="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="pools" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A793C9;fontColor=#4A3D62;fontSize=14;align=left;spacing=14;" value="任务能力池&#xa;&#xa;pool-general · 通用处理&#xa;pool-reason · 推理分析&#xa;pool-build · 实现&#xa;pool-build-reserve · 实现后备&#xa;pool-tests · 常规测试&#xa;pool-vision · 视觉理解&#xa;pool-compact · 摘要整理&#xa;pool-fallback · 故障恢复" vertex="1">
+                <mxCell id="pools" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A793C9;fontColor=#4A3D62;fontSize=14;align=left;spacing=14;" value="任务能力池&#xa;&#xa;pool-general · 通用处理&#xa;pool-reason · 推理分析&#xa;pool-build · 实现（含 WorkBuddy）&#xa;pool-tests · 常规测试&#xa;pool-vision · 视觉理解&#xa;pool-compact · 摘要整理&#xa;pool-fallback · 故障恢复" vertex="1">
                     <mxGeometry height="255" width="300" x="25" y="70" as="geometry"/>
                 </mxCell>
                 <mxCell id="pstrong" parent="l3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F5ED;strokeColor=#55A484;fontColor=#205443;fontSize=14;" value="pool-build-strong&#xa;强化实现 · 固定 xhigh" vertex="1">

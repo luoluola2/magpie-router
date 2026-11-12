@@ -3,9 +3,8 @@
   "groups": [
     {"id":"group/pool-general","layer":"pool","name":"资源池 · 通用处理","routing":"order","stays":"turn","context":1048576,"members":["workbuddy/hy4free","opencode-zen-free/mimo-v2.6-flash-free","our-free-model/mimo-v2.6-flash-free","codex/gpt-6-luna:low"]},
     {"id":"group/pool-reason","layer":"pool","name":"资源池 · 推理分析","routing":"smart","stays":"auto","context":500000,"members":["codex/gpt-6.1-sol","grok/grok-4.7@500k"]},
-    {"id":"group/pool-build","layer":"pool","name":"资源池 · 实现","routing":"smart","stays":"auto","context":1000000,"members":["codex/gpt-6.1-terra","opencode-go/deepseek-v4.1-flash:max"]},
+    {"id":"group/pool-build","layer":"pool","name":"资源池 · 实现","routing":"smart","stays":"auto","context":1000000,"members":["codex/gpt-6.1-terra","workbuddy/deepseek-v4.1-flash:max","opencode-go/deepseek-v4.1-flash:max"]},
     {"id":"group/pool-build-strong","layer":"pool","name":"资源池 · 强化实现","routing":"order","stays":"auto","context":500000,"members":["codex/gpt-6.1-sol:xhigh"]},
-    {"id":"group/pool-build-reserve","layer":"pool","name":"资源池 · 实现后备","routing":"order","stays":"turn","context":1000000,"members":["workbuddy/deepseek-v4.1-flash:max"]},
     {"id":"group/pool-tests","layer":"pool","name":"资源池 · 常规测试","routing":"order","stays":"turn","context":1000000,"members":["opencode-go/deepseek-v4.1-flash:low"]},
     {"id":"group/pool-compact","layer":"pool","name":"资源池 · 摘要整理","routing":"order","stays":"turn","context":1000000,"members":["workbuddy/deepseek-v4.1-flash:low","opencode-go/deepseek-v4.1-flash:low"]},
     {"id":"group/pool-vision","layer":"pool","name":"资源池 · 视觉理解","routing":"order","stays":"auto","context":1048576,"members":["codex/gpt-6.1-terra","opencode-zen-free/mimo-v2.6-flash-free","our-free-model/mimo-v2.6-flash-free"]},
@@ -19,7 +18,7 @@
       {"use":"group/pool-build,group/pool-reason","when":{},"expressions":["message contains 落地示例"]},
       {"use":"group/pool-build","when":{"intent":"主要需要示例实现、代码级可行性验证或具体落地步骤，且不要求直接修改"}}
     ]},
-    {"id":"group/task-implement","layer":"task","name":"任务 · 实现","routing":"order","stays":"turn","context":1000000,"members":["group/pool-build","group/pool-build-reserve","group/pool-fallback"]},
+    {"id":"group/task-implement","layer":"task","name":"任务 · 实现","routing":"order","stays":"turn","context":1000000,"members":["group/pool-build","group/pool-fallback"]},
     {"id":"group/task-implement-strong","layer":"task","name":"任务 · 强化实现","routing":"order","stays":"turn","context":500000,"members":["group/pool-build-strong"]},
     {"id":"group/task-review","layer":"task","name":"任务 · 评审","routing":"order","stays":"turn","context":1000000,"classifier":"typesafe/jev-latest","intent-sure":"0.3","members":["group/pool-reason","group/pool-build","group/pool-fallback"],"rules":[
       {"use":"group/pool-build,group/pool-reason","when":{},"expressions":["message contains 调用链"]},

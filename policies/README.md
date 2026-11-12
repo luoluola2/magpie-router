@@ -17,6 +17,6 @@
 
 统一兜底是 `group/pool-fallback`：只能包含具体模型，各任务组（SOTA 与强化实现除外）末位引用，Work 不直连。按依赖先应用资源池，再应用任务组与入口；配置和成本说明见 `routing-overview.md`。
 
-公布上下文与实现能力基准分别维护：`context` 表示客户端可见容量；`pool-build` 的主力准入目标由 Terra 与 OpenCode Go Flash:max 承担，不由窗口大小推导。跨供应商 Fallback 与强化入口的普通实现回退均属于允许降级的恢复路径，不再要求所有自动候选满足严格能力下限。
+公布上下文与实现能力基准分别维护：`context` 表示客户端可见容量；`pool-build` 的主力准入目标由 Terra、WorkBuddy Flash:max 与 OpenCode Go Flash:max 共同承担，WorkBuddy 排在 OpenCode Go 之前，不由窗口大小推导。跨供应商 Fallback 与强化入口的普通实现回退均属于允许降级的恢复路径，不再要求所有自动候选满足严格能力下限。
 
 通用子代理职责与部署状态见 `subagents/README.md`；角色定义默认任务入口，是否实际写入模型字段以各客户端部署状态为准，不维护组内模型选择。

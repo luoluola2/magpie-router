@@ -22,6 +22,7 @@ RETIRED_V4_GROUPS = frozenset({
     "group/task-light", "group/task-long", "group/task-classify",
     "group/pool-long", "group/pool-build-long", "group/pool-build-credit",
     "group/pool-classify", "group/pool-free", "group/pool-economy",
+    "group/pool-build-reserve",
 })
 
 
