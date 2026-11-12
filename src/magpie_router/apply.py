@@ -8,17 +8,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .desired import (
-    DesiredGroup,
-    application_order,
-    check_exposed_models,
-    diff_lines,
-    load_spec,
-    same_configuration,
-)
+from .compare import diff_lines, same_configuration
 from .magpie import MagpieError, checked_magpie
-from .paths import snapshot_dir
-from .routing import (
+from .model import (
     GROUP_ID,
     RouteGroup,
     Rule,
@@ -26,6 +18,8 @@ from .routing import (
     group_references,
     read_group,
 )
+from .paths import snapshot_dir
+from .spec import DesiredGroup, application_order, check_exposed_models, load_spec
 from .store import begin_apply, finish_apply, sync_observation
 
 

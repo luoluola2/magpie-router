@@ -11,10 +11,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .contexts import context_windows
-from .desired import default_spec_path, load_spec
 from .magpie import MagpieError, checked_magpie
+from .model import RouteGroup, group_payload, group_references, parse_group
 from .paths import database_path as default_database_path
-from .routing import RouteGroup, group_payload, group_references, parse_group
+from .spec import default_spec_path, load_spec
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (

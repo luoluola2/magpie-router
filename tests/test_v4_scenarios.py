@@ -3,9 +3,9 @@
 import unittest
 from unittest.mock import patch
 
+from magpie_router.apply import rule_arguments
 from magpie_router.cli import main
-from magpie_router.desired import load_spec
-from magpie_router.rollout import rule_arguments
+from magpie_router.spec import load_spec
 
 
 def selected_target(group, *, matched_intent=None, images=False, compact=False, message=""):

@@ -8,24 +8,25 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from magpie_router.desired import (
+from magpie_router.apply import apply_group, apply_spec, rule_arguments
+from magpie_router.magpie import MagpieError
+from magpie_router.model import (
+    Member,
+    RouteGroup,
+    Rule,
+    group_references,
+    normalize_conditions,
+    normalize_expressions,
+    normalize_use_effort,
+    parse_group,
+)
+from magpie_router.paths import config_dir, database_path
+from magpie_router.spec import (
     DesiredGroup,
     DesiredSpec,
     application_order,
     load_spec,
     validate_spec,
-)
-from magpie_router.magpie import MagpieError
-from magpie_router.paths import config_dir, database_path
-from magpie_router.rollout import apply_group, apply_spec, rule_arguments
-from magpie_router.routing import (
-    Member,
-    RouteGroup,
-    Rule,
-    normalize_conditions,
-    normalize_expressions,
-    normalize_use_effort,
-    parse_group,
 )
 from magpie_router.store import (
     catalog_completeness,
@@ -72,7 +73,7 @@ class PathTests(unittest.TestCase):
             try:
                 os.chdir(temporary)
                 self.assertTrue((config_dir() / "routing.json").is_file())
-                self.assertEqual(database_path(), original / ".local" / "magpie-router.db")
+                self.assertEqual(database_path(), original / "state" / "db" / "magpie-router.db")
             finally:
                 os.chdir(original)
 
@@ -80,53 +81,41 @@ class PathTests(unittest.TestCase):
 class SpecTests(unittest.TestCase):
     """锁定路由拓扑、规则语义与昂贵模型隔离。"""
 
-    def test_v3_topology_and_sota_isolation(self):
-        """二十四组可拓扑排序；SOTA 与按量 API 不进入自动链。"""
-        spec = load_spec(Path("policies/routing-v3.json"))
-        self.assertEqual(spec.version, "v3")
-        self.assertEqual(len(spec.groups), 24)
-        self.assertEqual(application_order(spec)[-1].id, "group/work")
+    def test_v4_topology_and_strong_intent(self):
+        """当前规范为 v4，入口末位拓扑与强化回退保持有效。"""
+        spec = load_spec()
+        self.assertEqual(spec.version, "v4")
+        self.assertEqual(application_order(spec)[-1].id, "group/entry-work")
         groups = {group.id: group for group in spec.groups}
-        self.assertEqual(groups["group/work"].classifier, "group/classify")
-        self.assertNotIn("group/fallback", groups["group/work"].members)
-        self.assertEqual(groups["group/pool-sota"].members, (
-            "codex/gpt-6-astra", "app-yylx-io-10275/claude-opus-5-5"))
-        for group in spec.groups:
-            if group.layer != "task" or group.id == "group/sota":
-                continue
-            self.assertNotIn("group/sota", " ".join(group.members))
-            self.assertNotIn("astra", " ".join(group.members))
-            self.assertNotIn("opus", " ".join(group.members))
-            self.assertNotIn("deepseek/deepseek-flash", " ".join(group.members))
-            self.assertEqual(group.members[-1], "group/fallback")
+        self.assertIn("group/task-implement-strong", groups["group/entry-work"].members)
+        self.assertEqual(groups["group/task-sota"].members, ("group/pool-sota",))
+        with tempfile.TemporaryDirectory() as directory:
+            old_spec = Path(directory) / "routing.json"
+            old_spec.write_text('{"version":"v3","groups":[]}', encoding="utf-8")
+            with self.assertRaises(MagpieError):
+                load_spec(old_spec)
 
-    def test_combined_conditions_and_work_precedence(self):
-        """规则支持 AND 条件，意图优先于图片和长度。"""
-        spec = load_spec(Path("policies/routing-v3.json"))
-        work = {group.id: group for group in spec.groups}["group/work"]
-        conditions = [dict(rule.conditions) for rule in work.rules]
-        self.assertEqual(conditions[0], {"compact": "true"})
-        self.assertIn({"intent": "实现功能、修改业务代码或定位并修复缺陷，包括必要测试和按截图实现界面"}, conditions)
-        self.assertEqual(conditions[-2], {"images": "true"})
-        self.assertEqual(conditions[-1], {"tokens": "500000"})
-        self.assertEqual([rule.target for rule in work.rules][1], "group/review")
+    def test_v4_work_precedence_and_combined_conditions(self):
+        """保留四层入口规则顺序，并校验规范支持的 AND 条件。"""
+        spec = load_spec()
+        work = next(group for group in spec.groups if group.id == "group/entry-work")
+        self.assertEqual(dict(work.rules[0].conditions), {"compact": "true"})
+        self.assertTrue(any("group/task-implement-strong" in rule.targets for rule in work.rules))
         self.assertEqual(normalize_conditions({"images": True, "tokens": "500k"}), (
             ("images", "true"), ("tokens", "500000")))
 
     def test_validate_rejects_loop_missing_fallback_and_sota_reference(self):
-        """配置校验拒绝环、缺少末位兜底和自动调用 SOTA。"""
-        spec = load_spec(Path("policies/routing-v3.json"))
-        groups = {group.id: group for group in spec.groups}
+        """v4 校验拒绝缺失成员、末位兜底和自动调用 SOTA。"""
+        spec = load_spec()
+        altered = tuple(replace(group, members=("group/entry-work",)) if group.id == "group/task-general" else group for group in spec.groups)
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v3", spec.groups[:-1] + (
-                replace(groups["group/work"], members=("group/work",)),)))
-        invalid = replace(groups["group/light"], members=groups["group/light"].members[:-1])
+            validate_spec(DesiredSpec("v4", altered))
+        altered = tuple(replace(group, members=("group/pool-general",)) if group.id == "group/task-general" else group for group in spec.groups)
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v3", tuple(invalid if group.id == invalid.id else group for group in spec.groups)))
-        invalid_work = replace(groups["group/work"], members=("group/sota",) + groups["group/work"].members)
+            validate_spec(DesiredSpec("v4", altered))
+        altered = tuple(replace(group, members=("group/pool-sota", "group/pool-fallback")) if group.id == "group/task-general" else group for group in spec.groups)
         with self.assertRaises(MagpieError):
-            validate_spec(DesiredSpec("v3", spec.groups[:-1] + (invalid_work,)))
-
+            validate_spec(DesiredSpec("v4", altered))
     def test_parse_combined_multi_target_rule(self):
         """CLI 规则可完整回读 AND 条件和有序多目标。"""
         parsed = parse_group("group/architect", DETAIL)
@@ -137,6 +126,11 @@ class SpecTests(unittest.TestCase):
         self.assertEqual(parsed.rules[1].conditions, (("effort", "xhigh"),))
         self.assertEqual(parsed.rules[2].conditions, (("intent", "评审"),))
         self.assertEqual(parsed.classifier, "group/classify")
+
+    def test_group_references_only_reads_top_level_rows(self):
+        """不会把箭头后的子组误当作新的顶层组。"""
+        output = "  Work  group/work  order  group/implement -> group/light\n  Light  group/light   order\n"
+        self.assertEqual(group_references(output), ["group/work", "group/light"])
 
     def test_parse_rejects_unknown_conditions(self):
         """未知条件明确失败，不静默丢失语义。"""
@@ -175,12 +169,10 @@ class SpecTests(unittest.TestCase):
             "use=group/review", "intent=评审", "classifier=group/classify"])
         with self.assertRaises(MagpieError):
             rule_arguments(intent)
-        spec = load_spec(Path("policies/routing-v3.json"))
-        work = {group.id: group for group in spec.groups}["group/work"]
-        rules = [dict(rule.conditions) for rule in work.rules]
-        self.assertLess(rules.index({"images": "true"}), rules.index({"tokens": "500000"}))
-        self.assertIn("按截图实现界面", str(rules))
-        self.assertIn("识别图片", str(rules))
+        spec = load_spec()
+        work = next(group for group in spec.groups if group.id == "group/entry-work")
+        self.assertTrue(any("message contains 强化实现" in expression for rule in work.rules for expression in rule.expressions))
+        self.assertFalse(any("tokens" in dict(rule.conditions) for rule in work.rules))
 
 
 class StoreTests(unittest.TestCase):
@@ -195,9 +187,9 @@ class StoreTests(unittest.TestCase):
             initialize(path)
             initialize(path)
             with patch("magpie_router.store.checked_magpie", side_effect=self.commands("group/light")):
-                self.assertEqual(sync_observation(path, Path("policies/routing.json")), "partial")
+                self.assertEqual(sync_observation(path, Path("config/routing.json")), "partial")
             with patch("magpie_router.store.checked_magpie", side_effect=self.commands("group/implement")):
-                sync_observation(path, Path("policies/routing.json"))
+                sync_observation(path, Path("config/routing.json"))
             self.assertEqual(latest_completeness(path), "complete")
             connection = sqlite3.connect(path)
             try:
@@ -231,7 +223,7 @@ class StoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "router.db"
             with patch("magpie_router.store.checked_magpie", side_effect=respond):
-                sync_observation(path, Path("policies/routing.json"))
+                sync_observation(path, Path("config/routing.json"))
             connection = sqlite3.connect(path)
             try:
                 sure = connection.execute(
@@ -277,10 +269,10 @@ class ApplyTests(unittest.TestCase):
         """构造一个只比较成员的目标组。"""
         return DesiredGroup("group/architect", "order", "session", tuple(members))
 
-    @patch("magpie_router.rollout.begin_apply", return_value=1)
-    @patch("magpie_router.rollout.finish_apply")
-    @patch("magpie_router.rollout.checked_magpie")
-    @patch("magpie_router.rollout.read_group")
+    @patch("magpie_router.apply.begin_apply", return_value=1)
+    @patch("magpie_router.apply.finish_apply")
+    @patch("magpie_router.apply.checked_magpie")
+    @patch("magpie_router.apply.read_group")
     def test_apply_success_records_both_states(self, read_group, checked, finish, begin):
         """成功应用时记录前后 JSON，且不读取网关密钥。"""
         state = {"group": route_group("architect", ["a/a"])}
@@ -300,10 +292,10 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue(finish.call_args.args[3])
         checked.assert_called_once()
 
-    @patch("magpie_router.rollout.begin_apply", return_value=1)
-    @patch("magpie_router.rollout.finish_apply")
-    @patch("magpie_router.rollout.checked_magpie")
-    @patch("magpie_router.rollout.read_group")
+    @patch("magpie_router.apply.begin_apply", return_value=1)
+    @patch("magpie_router.apply.finish_apply")
+    @patch("magpie_router.apply.checked_magpie")
+    @patch("magpie_router.apply.read_group")
     def test_mismatch_restores_previous_group(self, read_group, checked, finish, begin):
         """回读不一致时恢复原成员并报告失败。"""
         reads = [
@@ -320,32 +312,31 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(checked.call_args_list[1].args[0][3], "models=a/a")
         self.assertFalse(finish.call_args.args[3])
 
-    @patch("magpie_router.rollout.sync_observation")
-    @patch("magpie_router.rollout.apply_group")
-    @patch("magpie_router.rollout.load_spec")
-    @patch("magpie_router.rollout.check_exposed_models")
-    @patch("magpie_router.rollout.read_all_groups", return_value=[])
+    @patch("magpie_router.apply.sync_observation")
+    @patch("magpie_router.apply.apply_group")
+    @patch("magpie_router.apply.load_spec")
+    @patch("magpie_router.apply.check_exposed_models")
+    @patch("magpie_router.apply.read_all_groups", return_value=[])
     def test_later_group_is_not_attempted_after_failure(self, read_all, check, load, apply, sync):
         """一个组失败后停止后续组，整轮同步错误也会报告。"""
-        load.return_value = DesiredSpec("v2", (
-            DesiredGroup("group/fallback", "order", "turn", ("a/a",)),
-            DesiredGroup("group/light", "order", "turn", ("group/fallback",)),
-            DesiredGroup("group/work", "order", "turn", ("group/light",)),
-        ))
+        spec = load_spec()
+        load.return_value = spec
+        ordered = application_order(spec)
+        failing_id = ordered[1].id
 
         def fail(desired, db_path, **kwargs):
-            if desired.id == "group/light":
+            if desired.id == failing_id:
                 raise MagpieError("boom")
             return "applied"
 
         apply.side_effect = fail
         with self.assertRaises(MagpieError):
             apply_spec(self.db, Path("unused.json"))
-        self.assertEqual([call.args[0].id for call in apply.call_args_list], ["group/fallback", "group/light"])
+        self.assertEqual([call.args[0].id for call in apply.call_args_list], [ordered[0].id, failing_id])
 
     def test_sources_do_not_reference_gateway_credentials(self):
         """过渡实现不接入网关密钥。"""
-        for path in Path("magpie_router").glob("*.py"):
+        for path in Path("src/magpie_router").glob("*.py"):
             self.assertNotIn("MAGPIE_GATEWAY", path.read_text(encoding="utf-8"))
 
 

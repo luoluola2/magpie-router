@@ -7,16 +7,10 @@ from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 
-from magpie_router.desired import (
-    DesiredGroup,
-    DesiredSpec,
-    application_order,
-    diff_lines,
-    load_spec,
-    validate_spec,
-)
+from magpie_router.compare import diff_lines, topology_findings
 from magpie_router.magpie import MagpieError
-from magpie_router.routing import Member, RouteGroup, Rule, topology_findings
+from magpie_router.model import Member, RouteGroup
+from magpie_router.spec import DesiredSpec, application_order, load_spec, validate_spec
 from magpie_router.store import _replace_current, initialize
 
 
@@ -24,24 +18,16 @@ class LayerTests(unittest.TestCase):
     """验证池复用、层级边界和手动资源隔离。"""
 
     def spec(self):
-        """构造共享模型的最小四层配置。"""
-        return DesiredSpec("v3", (
-            DesiredGroup("group/fallback", "order", "turn", ("vendor/free",), layer="pool"),
-            DesiredGroup("group/pool-sota", "order", "turn", ("vendor/opus",), layer="pool"),
-            DesiredGroup("group/pool-a", "smart", "auto", ("vendor/free",), layer="pool"),
-            DesiredGroup("group/classify", "order", "turn", ("group/pool-a", "group/fallback"), layer="task"),
-            DesiredGroup("group/light", "order", "turn", ("group/pool-a", "group/fallback"), layer="task"),
-            DesiredGroup("group/sota", "order", "turn", ("group/pool-sota",), layer="task"),
-            DesiredGroup("group/work", "order", "turn", ("group/light",), classifier="group/classify", layer="entry"),
-        ))
+        """读取当前有效的四层规范。"""
+        return load_spec()
 
     def test_shared_pool_and_order(self):
         """共享资源池合法且依赖先于调用方。"""
         spec = self.spec()
         validate_spec(spec)
         order = [group.id for group in application_order(spec)]
-        self.assertLess(order.index("group/pool-a"), order.index("group/light"))
-        self.assertEqual(order[-1], "group/work")
+        self.assertLess(order.index("group/pool-build"), order.index("group/task-implement"))
+        self.assertEqual(order[-1], "group/entry-work")
 
     def test_v4_native_classifier_and_strong_boundary(self):
         """强化链可自动命中并显式降级，但强化池不可混入普通兜底。"""
@@ -104,16 +90,16 @@ class LayerTests(unittest.TestCase):
         """跨层、同层、缺失兜底和手动模型不能进入自动链。"""
         spec = self.spec()
         for group_id, changes in (
-            ("group/light", {"members": ("vendor/model", "group/fallback")}),
-            ("group/light", {"members": ("group/pool-a",)}),
-            ("group/pool-a", {"members": ("group/fallback",)}),
-            ("group/pool-a", {"members": ("vendor/opus",)}),
-            ("group/light", {"members": ("group/pool-sota", "group/fallback")}),
-            ("group/work", {"members": ("group/sota",)}),
+            ("group/task-general", {"members": ("vendor/model", "group/pool-fallback")}),
+            ("group/task-general", {"members": ("group/pool-general",)}),
+            ("group/pool-general", {"members": ("group/pool-fallback",)}),
+            ("group/pool-general", {"members": ("vendor/opus",)}),
+            ("group/task-general", {"members": ("group/pool-sota", "group/pool-fallback")}),
+            ("group/entry-work", {"members": ("group/task-sota",)}),
         ):
             groups = tuple(replace(group, **changes) if group.id == group_id else group for group in spec.groups)
             with self.subTest(group_id=group_id, changes=changes), self.assertRaises(MagpieError):
-                validate_spec(DesiredSpec("v3", groups))
+                validate_spec(DesiredSpec("v4", groups))
 
     def test_observed_layer_defaults_to_unknown(self):
         """镜像只标记已知规范 ID，不臆测未识别组的层级。"""
@@ -127,27 +113,19 @@ class LayerTests(unittest.TestCase):
 
     def test_live_topology_checks_members_rules_and_classifier(self):
         """实时任务直连模型、资源池引用组和规则跨层均必须报告。"""
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "routing.json"
-            path.write_text(Path("policies/routing-v3.json").read_text(encoding="utf-8"), encoding="utf-8")
+        with tempfile.TemporaryDirectory():
+            from magpie_router.spec import default_spec_path
+
             groups = [
-                RouteGroup("light", "Light", (
-                    Member("workbuddy/hy4free", True, ""), Member("group/fallback", True, ""),
-                ), "order", "turn"),
-                RouteGroup("pool-reason", "Pool Reason", (
-                    Member("group/fallback", True, ""),
-                ), "smart", "auto"),
-                RouteGroup("work", "Work", (
-                    Member("group/light", True, ""),
-                ), "order", "turn", (
-                    Rule("group/pool-long", (("tokens", "400000"),)),
-                ), "group/pool-classify"),
+                RouteGroup("task-general", "General", (Member("vendor/model", True, ""),), "order", "turn"),
+                RouteGroup("pool-reason", "Reason", (Member("group/pool-fallback", True, ""),), "smart", "auto"),
+                RouteGroup("entry-work", "Work", (Member("group/task-general", True, ""),), "order", "turn", (), "group/pool-classify"),
             ]
-            findings = [finding for finding in topology_findings(groups, path) if finding.group in {
-                "group/light", "group/pool-reason", "group/work",
+            findings = [finding for finding in topology_findings(groups, default_spec_path()) if finding.group in {
+                "group/task-general", "group/pool-reason", "group/entry-work",
             }]
             messages = [finding.message for finding in findings]
-            self.assertEqual(len(findings), 4)
+            self.assertEqual(len(findings), 3)
             self.assertTrue(all(finding.severity == "error" for finding in findings))
-            self.assertTrue(any("workbuddy/hy4free" in message for message in messages))
+            self.assertTrue(any("vendor/model" in message for message in messages))
             self.assertTrue(any("group/pool-classify" in message for message in messages))
