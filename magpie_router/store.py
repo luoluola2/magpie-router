@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from dataclasses import replace
-
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .contexts import context_windows
 from .desired import default_spec_path, load_spec
 from .magpie import MagpieError, checked_magpie
+from .paths import database_path as default_database_path
 from .routing import RouteGroup, group_payload, group_references, parse_group
-from .contexts import context_windows
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
@@ -68,9 +68,9 @@ CREATE TABLE IF NOT EXISTS apply_log (
 
 
 def database_path() -> Path:
-    """返回环境变量指定的数据库，默认放在未跟踪的 .local 目录。"""
+    """返回环境变量指定的数据库，默认放在未跟踪的状态目录。"""
     configured = os.environ.get("MAGPIE_ROUTER_DB")
-    return Path(configured) if configured else Path(".local") / "magpie-router.db"
+    return default_database_path(configured)
 
 
 @contextmanager

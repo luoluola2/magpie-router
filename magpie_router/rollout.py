@@ -9,11 +9,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .desired import (
-    DesiredGroup, DesiredSpec, application_order, check_exposed_models,
-    diff_lines, load_spec, same_configuration,
+    DesiredGroup,
+    application_order,
+    check_exposed_models,
+    diff_lines,
+    load_spec,
+    same_configuration,
 )
 from .magpie import MagpieError, checked_magpie
-from .routing import GROUP_ID, RouteGroup, Rule, group_payload, group_references, read_group
+from .paths import snapshot_dir
+from .routing import (
+    GROUP_ID,
+    RouteGroup,
+    Rule,
+    group_payload,
+    group_references,
+    read_group,
+)
 from .store import begin_apply, finish_apply, sync_observation
 
 
@@ -199,7 +211,7 @@ def apply_spec(db_path: Path | None = None, spec_path: Path | None = None) -> li
         f"group/{group.id}": group
         for group in read_all_groups(include_context=any(group.context is not None for group in spec.groups))
     }
-    backup = Path(".local") / (
+    backup = snapshot_dir() / (
         "route-before-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8] + ".json"
     )
     backup.parent.mkdir(parents=True, exist_ok=True)

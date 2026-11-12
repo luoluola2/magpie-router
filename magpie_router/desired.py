@@ -8,8 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .magpie import MagpieError, checked_magpie
+from .paths import config_dir
 from .routing import (
-    GROUP_ID, RouteGroup, Rule, normalize_conditions, normalize_expressions,
+    GROUP_ID,
+    RouteGroup,
+    Rule,
+    normalize_conditions,
+    normalize_expressions,
     normalize_use_effort,
 )
 
@@ -52,7 +57,7 @@ class DesiredSpec:
 
 def default_spec_path() -> Path:
     """返回仓库中的当前路由规范路径。"""
-    return Path("policies") / "routing.json"
+    return config_dir() / "routing.json"
 
 
 def model_reference(reference: str) -> str:
@@ -288,9 +293,12 @@ def _validate_v4(spec: DesiredSpec) -> None:
             raise MagpieError("手动 SOTA 资源池不能进入自动链。")
         if group.id != "group/task-sota" and "group/task-sota" in dependencies(group):
             raise MagpieError("SOTA 只能手动调用。")
-        if group.layer == "task" and group.id not in {"group/task-sota", "group/task-implement-strong"}:
-            if group.members.count("group/pool-fallback") != 1 or group.members[-1] != "group/pool-fallback":
-                raise MagpieError(f"{group.id} 必须以唯一 Fallback 结尾。")
+        if (
+            group.layer == "task"
+            and group.id not in {"group/task-sota", "group/task-implement-strong"}
+            and (group.members.count("group/pool-fallback") != 1 or group.members[-1] != "group/pool-fallback")
+        ):
+            raise MagpieError(f"{group.id} 必须以唯一 Fallback 结尾。")
     pools = {group.id for group in spec.groups if group.layer == "pool"}
     if pools - used_pools:
         raise MagpieError(f"资源池未被任务组引用：{', '.join(sorted(pools - used_pools))}")

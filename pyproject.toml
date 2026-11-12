@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magpie-router"
+version = "0.1.0"
+description = "维护 magpie 多供应商路由的策略、证据与受控变更"
+requires-python = ">=3.10"
+
+[project.scripts]
+magpie-router = "magpie_router.cli:main"
+
+[tool.setuptools]
+packages = ["magpie_router"]

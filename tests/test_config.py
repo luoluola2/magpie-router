@@ -16,6 +16,7 @@ from magpie_router.desired import (
     validate_spec,
 )
 from magpie_router.magpie import MagpieError
+from magpie_router.paths import config_dir, database_path
 from magpie_router.rollout import apply_group, apply_spec, rule_arguments
 from magpie_router.routing import (
     Member,
@@ -61,6 +62,19 @@ NEW_DETAIL = """  Probe  group/probe
 def route_group(group_id, members, stays="session", classifier=""):
     """构造比较用的实时路由组。"""
     return RouteGroup(group_id, group_id, tuple(Member(member, True, "") for member in members), "order", stays, (), classifier)
+
+
+class PathTests(unittest.TestCase):
+    def test_defaults_are_repository_relative(self):
+        """从其他工作目录调用时仍定位项目配置和默认数据库。"""
+        original = Path.cwd()
+        with tempfile.TemporaryDirectory() as temporary:
+            try:
+                os.chdir(temporary)
+                self.assertTrue((config_dir() / "routing.json").is_file())
+                self.assertEqual(database_path(), original / ".local" / "magpie-router.db")
+            finally:
+                os.chdir(original)
 
 
 class SpecTests(unittest.TestCase):

@@ -8,8 +8,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .magpie import MagpieError, checked_magpie
 from .contexts import context_windows
+from .magpie import MagpieError, checked_magpie
+from .paths import work_dir
 
 PLAN_VERSION = 1
 GROUP_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -473,8 +474,8 @@ def apply_order_plan(plan: dict) -> tuple[RouteGroup, Path]:
     if any(not member.available for member in group.members):
         raise MagpieError(f"{reference} 含有不可服务成员，拒绝应用。")
 
-    local = Path(".local")
-    local.mkdir(exist_ok=True)
+    local = work_dir()
+    local.mkdir(parents=True, exist_ok=True)
     checked_magpie(["group", "set", _group_id(reference), "models=" + ",".join(plan["target"])])
     actual = read_group(reference)
     if [member.id for member in actual.members] != plan["target"]:

@@ -1,16 +1,23 @@
 """四层路由的结构约束。"""
 
-import unittest
 import sqlite3
 import tempfile
+import unittest
 from contextlib import closing
-from pathlib import Path
 from dataclasses import replace
+from pathlib import Path
 
-from magpie_router.desired import DesiredGroup, DesiredSpec, application_order, diff_lines, load_spec, validate_spec
+from magpie_router.desired import (
+    DesiredGroup,
+    DesiredSpec,
+    application_order,
+    diff_lines,
+    load_spec,
+    validate_spec,
+)
 from magpie_router.magpie import MagpieError
+from magpie_router.routing import Member, RouteGroup, Rule, topology_findings
 from magpie_router.store import _replace_current, initialize
-from magpie_router.routing import RouteGroup, Member, Rule, topology_findings
 
 
 class LayerTests(unittest.TestCase):
