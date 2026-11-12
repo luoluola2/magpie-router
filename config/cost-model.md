@@ -31,7 +31,7 @@ Grok 多个模型共享同一 Pro 订阅的周窗口。公开页面的套餐名�
 | --- | --- | --- | --- |
 | DeepSeek 官方 `deepseek-flash` | 高峰：未命中输入 $0.30、缓存命中 $0.006、输出 $1.20；非高峰各为一半 | 高峰为周一至周五 UTC 01:00–04:00 与 06:00–10:00；周末及中国法定节假日全天为非高峰。来源：[DeepSeek 价格](https://api-docs.deepseek.com/quick_start/pricing/) | 仅明确指定时使用 |
 | 鱼鱼 `claude-opus-5-5` | 价格页列出：输入 $4、输出 $20、缓存读取 $0.20、五分钟缓存写入 $5、一小时缓存写入 $8 | “Claude API - 标准”分组显示 0.2 倍率，但当前账户实际分组及倍率是否生效尚未确认。来源：`https://app.yylx.io/api/v1/model-plaza`（2026-11-09） | 仅明确指定时使用 |
-| OpenRouter | 按所选上游模型价格计费 | Standard 购入额度另收 5.5%。四个指定 `:free` 模型经本机 magpie 核对价格为 0，仍受平台共享请求限制。来源：[OpenRouter 价格](https://openrouter.ai/pricing) | 四个免费模型进入跨供应商 `group/fallback`，由二级组末位引用 |
+| OpenRouter | 按所选上游模型价格计费 | Standard 购入额度另收 5.5%。四个指定 `:free` 模型经本机 magpie 核对价格为 0，仍受平台共享请求限制。来源：[OpenRouter 价格](https://openrouter.ai/pricing) | 免费路径进入跨供应商 `group/pool-fallback`，由普通任务组末位引用 |
 | SiliconFlow | 待确认 | 2026-11-09 官方公开价格页未返回可核验的模型单价 | 不根据缺失价格排序 |
 | WorkBuddy | 待确认 | 积分与模型和任务复杂度相关，但公开资料没有逐模型积分单价。来源：[WorkBuddy 积分](https://www.codebuddy.cn/docs/workbuddy/Credits) | 继续按实时积分与赠费证据评估 |
 
@@ -57,5 +57,5 @@ Grok 多个模型共享同一 Pro 订阅的周窗口。公开页面的套餐名�
 - 在合格路径中优先使用免费、赠费和已购买订阅；不同能力档不按价格强行替代。
 - 昂贵按量 API 不进入自动故障转移，只有明确指定时使用。
 - 不把订阅参考价、赠费、免费请求和未知价格合并成一个总分。
-- v2 规范的自动链不再包含鱼鱼、DeepSeek 官方及 Astra；这些模型仅在明确指定 SOTA 或其他手动入口时使用。应用前仍先运行 `route diff`。
-- `group/fallback` 以零价格 Hy4 和四个 OpenRouter 免费模型优先，其后是已购 Go、Plus、Grok 订阅路径；不加入按量付费 API 或价格未知的 SiliconFlow 模型。这里只定义兜底成本顺序，主链的既有付费引用尚未移除。
+- 当前 v4 自动链不包含鱼鱼、DeepSeek 官方及 Astra；这些模型仅在明确指定 SOTA 或其他手动入口时使用。应用前先运行 `magpie-router route diff`。
+- `group/pool-fallback` 按当前 `routing.json` 的顺序提供免费与低成本恢复候选；不加入按量付费 API 或价格未知的 SiliconFlow 模型。具体成员与顺序以路由规范为准。

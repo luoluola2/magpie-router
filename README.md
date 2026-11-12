@@ -1,60 +1,46 @@
 # magpie-router
 
-让 Agent 以可观察、可审批、可回滚的方式长期维护 [magpie](https://usemagpie.ai) 的路由策略。
+让 Agent 以可观察、可审批、可回滚的方式维护 [magpie](https://usemagpie.ai) 路由策略。
 
-本项目不是第二个模型网关。`magpie` 持有供应商、订阅、密钥和运行状态，并执行真实请求；本项目负责盘点、诊断、变更计划与验证。
+`magpie` 是供应商、订阅、密钥和运行状态的事实来源，并执行真实请求。本项目负责只读盘点、策略检查、差异比较、受控应用和验证，不实现第二个模型网关。
 
-## 当前能力
+## 安装
 
-- `inspect`：只读盘点供应商、Agent、路由组和可用模型。
-- `audit`：检查组内未暴露的成员、没有可用成员的组，以及供应商重复暴露等问题。
-- `plan set-order`：根据实时组状态生成单个路由组的顺序变更计划，并附回滚数据。
-- `apply`：再次确认实时状态与计划基线一致后，应用一个路由组变更并验证结果。
-
-默认只读。`apply --yes` 执行单组排序计划，`route apply --yes` 按依赖顺序逐组执行期望配置；供应商、账号、密钥、网关密钥和 Agent 模型均不在自动变更范围内。
-
-## 使用
-
-要求 Python 3.10+ 和已运行的 `magpie`。CLI 会依次使用 `MAGPIE_CLI`、PATH 中的 `magpie`，以及应用的标准安装位置。
+要求 Python 3.10+ 和已运行的 `magpie`。本项目使用标准库作为运行时依赖；在仓库根目录安装可编辑包：
 
 ```sh
-python -m magpie_router inspect
-python -m magpie_router audit
-python -m magpie_router plan set-order group/long grok/grok-4.7@500k --output .local/long.plan.json
-python -m magpie_router apply .local/long.plan.json --yes
-python -m magpie_router db sync
-python -m magpie_router route diff
-python -m magpie_router route apply --yes
+python -m pip install -e .
 ```
 
-`policies/routing.json` 是 v4 期望路由，实际配置以 Magpie 为准。应用前先运行 `route diff` 并核对变更与授权；本地镜像默认写入 `.local/magpie-router.db`，只保存配置和回滚 JSON。
+安装后可从任意工作目录使用 `magpie-router`。`python -m magpie_router` 也可用于本地开发。
 
-数据库表、分层关联与历史语义见 `docs/database.md`。四层规范和实时观测分别保存，迁移中的差异以 `route diff` 为准。
+magpie CLI 依次从 `MAGPIE_CLI`、PATH 和应用标准安装位置查找。上下文元数据默认从 `http://127.0.0.1:3425/v1/models` 读取，可通过 `MAGPIE_MODELS_URL` 覆盖；若接口需要认证，本实现会明确失败，不读取密钥文件或自动创建凭据。
 
-组的 `context` 使用正整数 tokens，表示向客户端公布的容量，不代表每个候选都能处理该长度。CLI 不返回这个字段，因此配置同步、diff 和应用验证会只读本地 `/v1/models` 元数据；默认地址为 `http://127.0.0.1:3425/v1/models`，可通过 `MAGPIE_MODELS_URL` 覆盖。此接口若需要认证，本实现明确失败，不读取密钥文件或自动创建凭据。回滚保存并恢复有效公布容量，不能恢复 CLI 未提供的原始 `smallest`/自动继承表达。
+## 能力与使用
 
-`plan` 和 `apply` 在成员未暴露或路由组状态已变化时拒绝继续，不会顺带暴露模型或覆盖其他改动。`apply` 成功后把实际结果和回滚计划写入 `.local/`。
+```sh
+magpie-router inspect
+magpie-router audit
+magpie-router db sync
+magpie-router route diff
+magpie-router route apply --yes
+```
 
-## 长期运行方式
+`config/routing.json` 是唯一的 v4 期望路由。`route diff` 同步本地镜像并显示完整规范与实时配置的差异；`route apply --yes` 按依赖顺序应用这份规范中的差异。应用前必须重新观测，并确认差异中的每个写入组都在本次明确批准范围内。应用会逐组记录结果，失败组会尝试恢复基线并停止后续操作；此前成功的组不会自动回滚。
 
-日常由 Agent 使用项目技能完成 `观测 → 评估 → 提案 → 审批 → 应用 → 验证`。每次决策应来自新的状态与用量证据，不能把某次额度读数、延迟或模型排名永久写死。
+四层路由结构和当前策略见 `config/routing-overview.md`。`context` 是客户端可见容量，不保证每个候选都能处理该长度。策略不代表已部署状态，实际配置始终以 magpie 为准。
 
-本地 SQLite 镜像只保存路由配置。调度、用量分析和自动优化仍不在本过渡实现中。
+## 本地状态与文档
 
-## 文档
+SQLite 镜像默认位于 `state/db/magpie-router.db`，可用 `MAGPIE_ROUTER_DB` 覆盖。回滚快照、脱敏证据和工作记录位于 `state/snapshots/`、`state/evidence/`、`state/work/`；这些目录不进入 Git。
 
-- `docs/routing-blueprint.drawio`：可编辑的路由总蓝图；图中区分目标设计与部署状态。路由结构或边界变化时同步维护。
-- `docs/architecture.md`：控制闭环、模块职责与实施阶段。
-- `GLOSSARY.md`：项目统一术语。
-- `skills/magpie-router/SKILL.md`：Agent 的工作流程。
-- `~/.agents/skills/magpie-setup/SKILL.md` 与 `~/.agents/skills/magpie-quota/SKILL.md`：本项目最高优先级技能，分别负责 magpie 配置执行与额度用量观测，触发条件见 `AGENTS.md`「必备技能」。
-- `docs/agents/`：本地 issue、领域文档和 triage 约定。
+数据库结构见 `docs/database.md`，控制流程与模块职责见 `docs/architecture.md`，领域术语见 `GLOSSARY.md`。Agent 的路由工作流程见 `skills/magpie-router/SKILL.md`，项目标准与授权边界见 `AGENTS.md`。
 
 ## 验证
 
 ```sh
 python -m unittest discover -s tests -v
-python -m magpie_router --help
+magpie-router --help
 ```
 
-运行中的原始观测和计划写入 `.local/`，不进入 Git；不要提交密钥、备份、完整会话、原始请求或个人使用记录。
+不要提交凭据、magpie 备份、完整会话、原始请求、个人使用记录或本机绝对路径。

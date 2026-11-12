@@ -1,6 +1,6 @@
 # SQLite 配置镜像
 
-默认路径为 `.local/magpie-router.db`，可用 `MAGPIE_ROUTER_DB` 覆盖；数据库、WAL 和 SHM 不进入 Git。运行 `python -m magpie_router db sync` 更新实时观测并追加期望规范。
+默认路径为 `state/db/magpie-router.db`，可用 `MAGPIE_ROUTER_DB` 覆盖；数据库、WAL 和 SHM 不进入 Git。运行 `magpie-router db sync` 更新实时观测并追加期望规范。
 
 | 表 | 当前内容 |
 | --- | --- |

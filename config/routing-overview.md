@@ -1,6 +1,6 @@
 # 路由调度总表
 
-2026-11-11：v4 目标配置见 `routing.json`；实际状态以 Magpie 为准，使用 `python -m magpie_router route diff` 比较。旧规范 `routing-v3.json` 仅供历史测试，不可用于应用。
+2026-11-11：唯一的 v4 目标配置见 `routing.json`；实际状态以 Magpie 为准，使用 `magpie-router route diff` 比较。旧版规范不再受支持。
 
 业务链采用 `entry-work → task-* → pool-* → 具体模型`。Jev 是 Magpie 原生辅助分类器，任务入口和 Work 直接引用 `typesafe/jev-latest`；该辅助引用不属于业务成员链。Magpie 不允许将含决策模型的组作为另一组的普通成员。详见 `docs/jev-migration.md`。
 
@@ -37,7 +37,7 @@ Work 的 12 条规则依次覆盖压缩、显式强化文字、强化意图、�
 
 成员顺序、推理强度、上下文与规则文本以 `routing.json` 为准。`pool-general` 面向日常通用任务；`pool-fallback` 面向跨任务故障恢复，两者少量复用模型但用途不同。免费候选的路径证据和复核步骤见 `free-models.md`。
 
-`pool-build` 依次包含 Terra、WorkBuddy Flash:max 和 OpenCode Go Flash:max，按 smart 调度；原 `pool-build-reserve` 已并入本池并退役。`pool-build-strong` 仅包含 Sol:xhigh，不能降级到普通模型。OpenCode Go 只使用 DeepSeek V4.1 Flash。`pool-sota` 手动使用 Astra 与鱼鱼 Opus，官方按量 DeepSeek 不进入自动路径。
+`pool-build` 依次包含 Terra、WorkBuddy Flash:max 和 OpenCode Go Flash:max，按 smart 调度；原 `pool-build-reserve` 已并入本池并退役。`pool-build-strong` 仅包含 Sol:xhigh；强化入口失败时由 Work 规则回退普通实现。OpenCode Go 只使用 DeepSeek V4.1 Flash。`pool-sota` 手动使用 Astra 与鱼鱼 Opus，官方按量 DeepSeek 不进入自动路径。
 
 固定订阅与按量成本分别评估。免费、赠费、未知价格及订阅窗口不合并为单一分数；实际成本依据见 `cost-model.md`、`providers.md`。
 
@@ -49,4 +49,4 @@ Jev 已在合成文本下返回预期分类，但 Work 的完整真实请求分�
 
 ## 日常维护
 
-按需观测目录、模型规格和价格，区分实际观测、用户确认和未知；新增或下架模型先形成建议。`route diff` 用 `RETIRED` 标记明确退役但仍存在的旧组，用 `UNKNOWN` 标记未纳入规范的组；两者均不会自动删除。处理退役组前检查路由、分类器和客户端引用。变更前核对实时状态，逐组保存基线、应用、回读并同步 SQLite；不记录密钥、完整会话或原始请求。模型目录不完整时标记 `partial`。
+按需观测目录、模型规格和价格，区分实际观测、用户确认和未知；新增或下架模型先形成建议。`magpie-router route diff` 用 `RETIRED` 标记明确退役但仍存在的旧组，用 `UNKNOWN` 标记未纳入规范的组；两者均不会自动删除。处理退役组前检查路由、分类器和客户端引用。`route apply --yes` 按依赖顺序应用整份规范的差异；执行前必须确认 diff 中每个组都在本次批准范围内，逐组核对基线、回读并同步 SQLite。不记录密钥、完整会话或原始请求。模型目录不完整时标记 `partial`。

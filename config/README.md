@@ -7,13 +7,13 @@
 - 每个工作负载至少保留一个已暴露且可服务的 Route Member。
 - 评价应区分能力、上下文、成本、配额节奏、稳定性和供应商集中风险，不能只看剩余额度。
 - 新模型先进入只读候选评估；暴露模型、增删供应商、变更账号和密钥需要独立授权。
-- 每次变更限于一个路由组，必须有实时基线、期望结果与回滚计划。
+- 每次 Change Set 覆盖一份完整规范差异，记录逐组基线、理由与回滚信息；应用范围仅限本次批准且出现在 `route diff` 中的组。
 
-具体 Policy 在产生真实需求后添加。CLI 可执行显式的成员顺序计划，也可通过 `route apply --yes` 应用本目录的完整路由规范；不会自行推断并优化模型能力排名。
+具体 Policy 在产生真实需求后添加。CLI 通过 `route diff` 检查并通过 `route apply --yes` 应用本目录的完整路由规范；不会自行推断并优化模型能力排名。
 
 供应商接入方式与各自的经济性、稳定性语义见 `providers.md`。 固定订阅与按量现金成本见 `cost-model.md`。 路由调度总表见 `routing-overview.md`，每次套餐、模型、候选或路由变更同步维护。
 
-当前期望路由见 `routing.json`，版本为 v4：`entry-work`、任务入口、资源池和模型逐层引用。应用前用 `python -m magpie_router route diff` 查看差异；`group/task-sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
+当前期望路由见 `routing.json`，版本为 v4：`entry-work`、任务入口、资源池和模型逐层引用。应用前用 `magpie-router route diff` 查看差异；`group/task-sota` 只在明确指定时调用，Astra、Opus 和 DeepSeek 官方 API 不进入自动分发或 Fallback。
 
 统一兜底是 `group/pool-fallback`：只能包含具体模型，各任务组（SOTA 与强化实现除外）末位引用，Work 不直连。按依赖先应用资源池，再应用任务组与入口；配置和成本说明见 `routing-overview.md`。
 

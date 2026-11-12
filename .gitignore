@@ -1,7 +1,6 @@
 .local/
 state/
 *.egg-info/
-.scratch/
 __pycache__/
 *.py[cod]
 .venv/
