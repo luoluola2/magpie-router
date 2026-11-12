@@ -330,7 +330,7 @@ class ApplyTests(unittest.TestCase):
             return "applied"
 
         apply.side_effect = fail
-        with self.assertRaises(MagpieError):
+        with patch("magpie_router.apply.snapshot_dir", return_value=Path(self.directory.name)), self.assertRaises(MagpieError):
             apply_spec(self.db, Path("unused.json"))
         self.assertEqual([call.args[0].id for call in apply.call_args_list], [ordered[0].id, failing_id])
 
